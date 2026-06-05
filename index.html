@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>三合院農園 - 牛奶新興梨訂購系統</title>
+
+    <!-- 🎯 核心引入 1：LINE 官方 LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <!-- 引入日系文青感字體 -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>牛奶梨訂購系統</h1>
+      <div class="farm-name">三合院農園</div>
+
+      <form id="orderForm" autocomplete="off">
+        <!-- 用於儲存 LINE User ID 的隱藏欄位 -->
+        <input type="hidden" id="lineUserIdInput" name="lineUserId" value="" />
+
+        <!-- 🖥️ 電腦版表格 -->
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>級別</th>
+                <th>單顆重量</th>
+                <th>顆數</th>
+                <th>售價</th>
+                <th>訂購數量(盒)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  13 A
+                </td>
+                <td>12.1~13裝</td>
+                <td>10顆</td>
+                <td style="font-weight: 500">900</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p13A"
+                      data-level="13 A"
+                      data-weight="12.1~13兩"
+                      data-count="10顆"
+                      data-price="900"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p13A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  14 A
+                </td>
+                <td>13.1~14裝</td>
+                <td>10顆</td>
+                <td style="font-weight: 500">1000</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p14A"
+                      data-level="14 A"
+                      data-weight="13.1~14兩"
+                      data-count="10顆"
+                      data-price="1000"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p14A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  15 A
+                </td>
+                <td>14.1~15裝</td>
+                <td>10顆</td>
+                <td style="font-weight: 500">1100</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p15A"
+                      data-level="15 A"
+                      data-weight="14.1~15兩"
+                      data-count="10顆"
+                      data-price="1100"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p15A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  19 A
+                </td>
+                <td>18.1~19裝</td>
+                <td>8顆</td>
+                <td style="font-weight: 500">1300</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p19A"
+                      data-level="19 A"
+                      data-weight="18.1~19兩"
+                      data-count="8顆"
+                      data-price="1300"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p19A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  21 A
+                </td>
+                <td>19.1~21裝</td>
+                <td>6顆</td>
+                <td style="font-weight: 500">1200</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p21A"
+                      data-level="21 A"
+                      data-weight="19.1~21兩"
+                      data-count="6顆"
+                      data-price="1200"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p21A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 700; color: var(--primary-color)">
+                  23 A
+                </td>
+                <td>21.1~23裝</td>
+                <td>6顆</td>
+                <td style="font-weight: 500">1500</td>
+                <td>
+                  <div class="qty-control">
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, -1)"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      class="qty-input"
+                      data-id="p23A"
+                      data-level="23 A"
+                      data-weight="21.1~23兩"
+                      data-count="6顆"
+                      data-price="1500"
+                      min="0"
+                      value="0"
+                      onchange="syncAndCalculate('p23A', this.value)"
+                    />
+                    <button
+                      type="button"
+                      class="qty-btn"
+                      onclick="stepQty(this, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 📱 手機版商品卡片 -->
+        <div class="product-cards">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">13 A 級別</span
+              ><span class="card-price">$900</span>
+            </div>
+            <div class="card-body">
+              <span>規格：10顆裝</span><span>重量：12.1~13兩 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p13A"
+                  data-level="13 A"
+                  data-weight="12.1~13兩"
+                  data-count="10顆"
+                  data-price="900"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p13A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">14 A 級別</span
+              ><span class="card-price">$1000</span>
+            </div>
+            <div class="card-body">
+              <span>規格：10顆裝</span><span>重量：13.1~14裝 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p14A"
+                  data-level="14 A"
+                  data-weight="13.1~14兩"
+                  data-count="10顆"
+                  data-price="1000"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p14A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">15 A 級別</span
+              ><span class="card-price">$1100</span>
+            </div>
+            <div class="card-body">
+              <span>規格：10顆裝</span><span>重量：14.1~15裝 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p15A"
+                  data-level="15 A"
+                  data-weight="14.1~15裝 / 顆"
+                  data-count="10顆"
+                  data-price="1100"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p15A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">19 A 級別</span
+              ><span class="card-price">$1300</span>
+            </div>
+            <div class="card-body">
+              <span>規格：8顆裝</span><span>重量：18.1~19裝 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p19A"
+                  data-level="19 A"
+                  data-weight="18.1~19裝 / 顆"
+                  data-count="8顆"
+                  data-price="1300"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p19A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">21 A 級別</span
+              ><span class="card-price">$1200</span>
+            </div>
+            <div class="card-body">
+              <span>規格：6顆裝</span><span>重量：19.1~21裝 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p21A"
+                  data-level="21 A"
+                  data-weight="19.1~21兩"
+                  data-count="6顆"
+                  data-price="1200"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p21A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">23 A 級別</span
+              ><span class="card-price">$1500</span>
+            </div>
+            <div class="card-body">
+              <span>規格：6顆裝</span><span>重量：21.1~23裝 / 顆</span>
+            </div>
+            <div class="card-footer">
+              <span>訂購數量：</span>
+              <div class="qty-control">
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, -1)"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  class="qty-input-mobile"
+                  data-id="p23A"
+                  data-level="23 A"
+                  data-weight="21.1~23兩"
+                  data-count="6顆"
+                  data-price="1500"
+                  min="0"
+                  value="0"
+                  onchange="syncAndCalculate('p23A', this.value)"
+                />
+                <button
+                  type="button"
+                  class="qty-btn"
+                  onclick="stepQty(this, 1)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 說明區塊 -->
+        <div class="info-section">
+          <h3>運費說明</h3>
+          <p>與黑貓宅急便合作常溫運送，同一地址收費方式如下：</p>
+          <ul style="padding-left: 20px; margin: 6px 0">
+            <li>單一盒：$150</li>
+            <li>二盒：$250</li>
+          </ul>
+          <br />
+          <h3 style="background-color: var(--accent-color)">免運規則</h3>
+          <p class="highlight-red">★ 三盒免運費★</p>
+          <p style="font-size: 0.95em; margin-top: 5px">
+            ⚠️ <strong>運費計算採「3的倍數」免運</strong>：<br />
+            例如：訂購 7 盒送往同一地址，內含兩組 3 盒（共6盒）享有免運，<br />剩餘的
+            1 盒需加收單盒運費 150 元。
+          </p>
+        </div>
+
+        <!-- 費用統計 -->
+        <div class="summary-box">
+          <div class="summary-row">
+            <span>總盒數：</span><span><span id="totalBoxes">0</span> 盒</span>
+          </div>
+          <div class="summary-row">
+            <span>商品小計：</span><span>$ <span id="subTotal">0</span></span>
+          </div>
+          <div class="summary-row">
+            <span>運費：</span><span>$ <span id="shippingFee">0</span></span>
+          </div>
+          <div
+            class="summary-row"
+            id="codFeeRow"
+            style="display: none; color: var(--accent-color); font-weight: 500"
+          >
+            <span>貨到付款手續費：</span
+            ><span>$ <span id="codFee">30</span></span>
+          </div>
+          <div class="summary-row total-row">
+            <span>應付總額：</span><span>$ <span id="grandTotal">0</span></span>
+          </div>
+        </div>
+
+        <div class="customer-form">
+          <!-- 1. 收件人 -->
+          <div class="form-section-title">
+            <h3>
+              1. 收件人資訊<span
+                style="
+                  font-size: 0.75em;
+                  color: var(--accent-color);
+                  font-weight: bold;
+                  margin-left: 5px;
+                "
+                >（不同收件地址請分開填單）</span
+              >
+            </h3>
+          </div>
+          <div class="form-group">
+            <label>收件人姓名</label>
+            <input
+              type="text"
+              id="customerName"
+              required
+              placeholder="請輸入收件人姓名"
+            />
+          </div>
+          <div class="form-group">
+            <label>收件人電話</label>
+            <input
+              type="tel"
+              id="customerPhone"
+              required
+              placeholder="例如：0912345678"
+            />
+          </div>
+
+          <!-- 預留剩餘表單欄位 -->
+          <button type="submit" class="submit-btn">送出訂單</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 🎯 核心引入 3：在最後引入你的前端邏輯控制閥 -->
+    <script src="app.js"></script>
+  </body>
+</html>
