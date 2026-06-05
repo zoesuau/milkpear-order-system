@@ -16,6 +16,7 @@
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
   <body>
@@ -377,7 +378,7 @@
                   class="qty-input-mobile"
                   data-id="p15A"
                   data-level="15 A"
-                  data-weight="14.1~15裝 / 顆"
+                  data-weight="14.1~15兩"
                   data-count="10顆"
                   data-price="1100"
                   min="0"
@@ -562,7 +563,8 @@
           <!-- 1. 收件人 -->
           <div class="form-section-title">
             <h3>
-              1. 收件人資訊<span
+              1. 收件人資訊
+              <span
                 style="
                   font-size: 0.75em;
                   color: var(--accent-color);
@@ -576,29 +578,254 @@
           <div class="form-group">
             <label>收件人姓名</label>
             <input
-              type="text"
               id="customerName"
+              type="text"
               required
               placeholder="請輸入收件人姓名"
+              autocomplete="name"
+              oninput="syncSenderIfChecked()"
             />
           </div>
           <div class="form-group">
             <label>收件人電話</label>
             <input
-              type="tel"
               id="customerPhone"
+              type="tel"
               required
-              placeholder="例如：0912345678"
+              placeholder="請輸入聯絡電話"
+              autocomplete="tel"
+              oninput="syncSenderIfChecked()"
+            />
+          </div>
+          <div class="form-group">
+            <label>收件地址</label>
+            <div id="twzipcode_wrap" class="address-selector"></div>
+            <input
+              id="address_detail"
+              type="text"
+              required
+              placeholder="請輸入後續的路名、門牌、樓層"
+              autocomplete="address-line1"
             />
           </div>
 
-          <!-- 預留剩餘表單欄位 -->
-          <button type="submit" class="submit-btn">送出訂單</button>
+          <!-- 2. 寄件人 -->
+          <div class="form-section-title">
+            <h3>2. 寄件人資訊（送禮必填）</h3>
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                id="sameAsReceiver"
+                onchange="toggleSameAsReceiver()"
+              />
+              同收件人 (自用)
+            </label>
+          </div>
+          <div class="form-group">
+            <label>寄件人姓名</label>
+            <input
+              id="senderName"
+              type="text"
+              required
+              placeholder="請輸入寄件人姓名"
+              autocomplete="new-password"
+              oninput="handleSenderInput()"
+            />
+          </div>
+          <div class="form-group">
+            <label>寄件人電話</label>
+            <input
+              id="senderPhone"
+              type="tel"
+              required
+              placeholder="請輸入寄件人聯絡電話"
+              autocomplete="new-password"
+              oninput="handleSenderInput()"
+            />
+          </div>
+
+          <!-- 3. 付款與出貨設定 -->
+          <div class="form-section-title">
+            <h3>3. 付款與出貨設定</h3>
+          </div>
+          <div class="form-group">
+            <label>付款方式</label>
+            <select
+              id="paymentMethod"
+              required
+              onchange="handlePaymentChange()"
+            >
+              <option value="轉帳匯款">轉帳匯款 (匯款完成請提供後五碼)</option>
+              <option value="貨到付款">黑貓貨到付款 (+30元手續費)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label
+              >指定出貨日期
+              <span
+                id="dateRequiredStar"
+                style="color: var(--accent-color); display: none"
+                >*</span
+              ></label
+            >
+            <input
+              id="shippingDate"
+              type="date"
+              onchange="validateShippingDate(this.value)"
+            />
+            <div
+              id="shippingDateNotice"
+              style="
+                font-size: 0.85em;
+                color: var(--text-muted);
+                margin-top: 4px;
+              "
+            ></div>
+          </div>
+
+          <!-- 4. 訂單備註 -->
+          <div class="form-section-title">
+            <h3>4. 訂單備註</h3>
+          </div>
+          <div class="form-group">
+            <label>備註事項 (選填)</label>
+            <textarea
+              id="note"
+              rows="3"
+              placeholder="若本筆是要「修改上一筆錯誤訂單」，請在此註明（例如：此筆要修改上一筆收件人姓名為王大同的訂單內容，請以此筆為準）。"
+              style="resize: vertical"
+            ></textarea>
+          </div>
+
+          <button
+            type="button"
+            class="submit-btn"
+            id="submitBtn"
+            onclick="submitOrder(event)"
+          >
+            送出訂單
+          </button>
         </div>
       </form>
-    </div>
 
-    <!-- 🎯 核心引入 3：在最後引入你的前端邏輯控制閥 -->
-    <script src="app.js"></script>
+      <div id="successBlock" class="success-box" style="display: none">
+        <div
+          style="
+            font-size: 40px;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+          "
+        >
+          ✓
+        </div>
+        <h2 style="color: var(--primary-color); margin: 0 0 10px 0">
+          訂單送出成功！
+        </h2>
+        <p style="color: var(--text-color); margin: 0 0 15px 0">
+          感謝您的訂購，本筆訂單核對統整如下：
+        </p>
+
+        <div class="payment-instruction-box">
+          <h4>💰 訂單款項統整：</h4>
+          <div
+            style="padding-left: 10px; margin-bottom: 10px; line-height: 1.6"
+          >
+            • 訂購人姓名：<span
+              id="successName"
+              style="font-weight: bold"
+            ></span
+            ><br />
+            • 商品總盒數：<span
+              id="successBoxes"
+              style="font-weight: bold"
+            ></span>
+            盒<br />
+            • 應付總金額：<span
+              id="successTotal"
+              style="
+                font-weight: bold;
+                color: var(--accent-color);
+                font-size: 1.1em;
+              "
+            ></span>
+            元<br />
+            • 選擇付款方式：<span
+              id="successPayment"
+              style="font-weight: bold; color: var(--primary-color)"
+            ></span
+            ><br />
+            • 指定出貨日期：<span
+              id="successDate"
+              style="font-weight: bold"
+            ></span>
+          </div>
+
+          <!-- 轉帳匯款指引色塊 -->
+          <div
+            id="transferAlertBlock"
+            style="
+              border-top: 1px dashed #fbc02d;
+              padding-top: 10px;
+              color: var(--accent-color);
+              display: none;
+            "
+          >
+            <strong>📢 【下一步驟：重要匯款提示】</strong><br />
+            請將款項匯入農場帳戶：<br />
+            <span
+              style="
+                color: #333;
+                background: #fff;
+                padding: 4px 8px;
+                border: 1px solid #ddd;
+                display: inline-block;
+                margin: 6px 0;
+                font-family: monospace;
+                border-radius: 6px;
+              "
+            >
+              銀行代碼：007 (第一銀行) <br />帳號：123-45-678901 </span
+            ><br />
+            ⚠️
+            <strong
+              >匯款完成後，請務必在此 LINE
+              對話中告知小幫手您的「匯款帳號後五碼」！我們核對到帳款後，才會正式為您安排排單出貨。</strong
+            >
+          </div>
+
+          <!-- 貨到付款提示色塊 -->
+          <div
+            id="codAlertBlock"
+            style="
+              border-top: 1px dashed #fbc02d;
+              padding-top: 10px;
+              color: #f57f17;
+              display: none;
+            "
+          >
+            <strong>📢 【貨到付款須知】</strong><br />
+            您選擇黑貓貨到付款（金額已包含 30
+            元物流手續費），商品送達時請將總金額交給黑貓司機即可。我們將按照您指定的出貨日期安排出梨，祝您收梨愉快！
+          </div>
+        </div>
+
+        <button type="button" class="next-btn" onclick="resetFormForNext()">
+          增加下一筆訂單
+        </button>
+
+        <div class="modify-notice">
+          💡 <strong>發現資料填錯了？</strong><br />
+          請點擊上方「增加下一筆訂單」按鈕重新填寫正確資料，並在最下方的<strong
+            >「4. 訂單備註」</strong
+          >內註明<em>『此筆為修改訂單，請以此筆為準』</em>再送出即可。
+        </div>
+      </div>
+
+      <!-- 歷史訂單清單區塊 -->
+      <div id="historySection" class="history-section" style="display: none">
+        <div class="history-title">📋 您當前已填寫的訂單清單：</div>
+        <div id="historyContainer"></div>
+      </div>
+    </div>
   </body>
 </html>
