@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // 1. 初始化 LINE LIFF
   liff
     .init({
-      liffId: "2010281400-n7ZQfjTO", // 妳的 LIFF ID
+      liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
     })
     .then(() => {
       console.log("LIFF 初始化成功！");
