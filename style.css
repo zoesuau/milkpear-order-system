@@ -12,7 +12,6 @@
   --shadow-sm: 0 4px 16px rgba(140, 134, 122, 0.06);
   --shadow-md: 0 8px 24px rgba(140, 134, 122, 0.12);
 }
-
 * {
   box-sizing: border-box;
 }
@@ -383,15 +382,37 @@ input[type="number"] {
 .submit-btn:active {
   transform: translateY(1px);
 }
+.note-textarea {
+  min-height: 480px;
+}
 
+.note-textarea::placeholder {
+  font-size: 1rem;
+  color: rgba(140, 134, 122, 0.65);
+}
 @media (max-width: 980px) {
+  .form-section-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .form-section-title h3 {
+    flex: 1;
+    flex-wrap: wrap;
+    line-height: 1.4;
+  }
+  .checkbox-label {
+    font-size: 1.2rem;
+    line-height: 1.4;
+  }
   input[type="date"] {
     appearance: none;
     -webkit-appearance: none;
   }
 
   .submit-btn {
-    font-size: 2.5rem;
+    font-size: 2rem;
   }
   .form-group label {
     font-size: 1.5rem;
@@ -400,19 +421,19 @@ input[type="number"] {
   .form-group input,
   .form-group select,
   .form-group textarea {
-    font-size: 1.6rem;
-    min-height: 80px;
+    font-size: 1.2rem;
+    min-height: 60px;
   }
   h1 {
     font-size: 2.2rem;
   }
   body {
-    padding: 5px 5px;
+    padding: 15px 15px;
   }
   .container {
     max-width: none;
-    width: 85%;
-    margin: 0;
+    width: 90%;
+    margin: 0 auto;
   }
   .table-container {
     display: none;
