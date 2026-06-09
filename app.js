@@ -370,7 +370,17 @@ async function submitOrder(e) {
       document.getElementById("successPayment").innerText = data.paymentMethod;
     if (document.getElementById("successDate"))
       document.getElementById("successDate").innerText = data.shippingDate;
+  if (document.getElementById("successReceiverName"))
+  document.getElementById("successReceiverName").innerText = data.name;
 
+if (document.getElementById("successReceiverPhone"))
+  document.getElementById("successReceiverPhone").innerText = data.phone;
+
+if (document.getElementById("successReceiverAddress"))
+  document.getElementById("successReceiverAddress").innerText = data.address;
+
+
+    
     const transferAlert = document.getElementById("transferAlertBlock");
     const codAlert = document.getElementById("codAlertBlock");
     if (data.paymentMethod === "貨到付款") {
