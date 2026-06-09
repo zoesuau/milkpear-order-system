@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>三合院農園 - 牛奶新興梨訂購系統</title>
- <!-- 🎯 核心引入 1：LINE 官方 LIFF SDK -->
+    <!-- 🎯 核心引入 1：LINE 官方 LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
     <!-- 引入日系文青感字體 -->
@@ -610,7 +610,7 @@
 
           <!-- 2. 寄件人 -->
           <div class="form-section-title">
-            <h3>2. 寄件人資訊（送禮必填）</h3>
+            <h3 class="receiver-title">2. 寄件人資訊（送禮必填）</h3>
             <label class="checkbox-label">
               <input
                 type="checkbox"
@@ -649,11 +649,7 @@
           </div>
           <div class="form-group">
             <label>付款方式</label>
-            <select
-              id="paymentMethod"
-              required
-              onchange="handlePaymentChange()"
-            >
+            <select id="paymentMethod" required>
               <option value="轉帳匯款">轉帳匯款 (匯款完成請提供後五碼)</option>
               <option value="貨到付款">黑貓貨到付款 (+30元手續費)</option>
             </select>
@@ -690,6 +686,7 @@
             <label>備註事項 (選填)</label>
             <textarea
               id="note"
+              class="note-textarea"
               rows="3"
               placeholder="若本筆是要「修改上一筆錯誤訂單」，請在此註明（例如：此筆要修改上一筆收件人姓名為王大同的訂單內容，請以此筆為準）。"
               style="resize: vertical"
@@ -826,6 +823,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js"></script>   
+    <script src="./app.js"></script>
   </body>
 </html>
