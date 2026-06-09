@@ -6,8 +6,9 @@ let currentUserId = ""; // 全域儲存 LINE UID
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 document.addEventListener("DOMContentLoaded", function () {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
-
-  // 1. 初始化 LINE LIFF
+console.log("登入狀態", liff.isLoggedIn());  // 1. 初始化 LINE LIFF
+  console.log("UID", currentUserId);
+  
   liff
     .init({
       liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
