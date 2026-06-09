@@ -29,7 +29,7 @@ body {
   max-width: 720px;
   margin: 0 auto;
   background: #fff;
-  padding: 32px 24px;
+  padding: 22px 14px;
   border-radius: 24px;
   box-shadow: var(--shadow-sm);
   border: 1px solid rgba(230, 225, 212, 0.4);
@@ -104,7 +104,7 @@ tr:nth-child(even) {
   align-items: center;
   justify-content: center;
   border: 1px solid #ddd9ce;
-  border-radius: 30px;
+  border-radius: 50px;
   overflow: hidden;
   background: #fff;
   transition: border-color 0.3s;
@@ -164,7 +164,7 @@ input[type="number"] {
   border: 1px solid #edeae1;
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(140, 134, 122, 0.04);
+  box-shadow: 0 4px 16px rgba(232, 222, 200, 0.66);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -428,11 +428,11 @@ input[type="number"] {
     font-size: 2.2rem;
   }
   body {
-    padding: 15px 15px;
+    padding: 5px 5px;
   }
   .container {
     max-width: none;
-    width: 95%;
+    width: 99%;
     margin: 0 auto;
   }
   .table-container {
@@ -445,14 +445,14 @@ input[type="number"] {
     width: fit-content;
   }
   .qty-btn {
-    width: 64px;
-    height: 64px;
-    font-size: 1.5rem;
+    width: 50px;
+    height: 40px;
+    font-size: 1.2rem;
   }
   input[type="number"] {
-    width: 64px;
-    height: 64px;
-    font-size: 1.5rem;
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
   }
   .address-selector {
     grid-template-columns: 1fr;
