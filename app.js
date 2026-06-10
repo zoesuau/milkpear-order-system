@@ -360,7 +360,7 @@ async function submitOrder(e) {
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
     if (document.getElementById("successName"))
-      document.getElementById("successName").innerText = data.senderName;
+      document.getElementById("successName").innerText = "測試-" + data.senderName;
     if (document.getElementById("successBoxes"))
       document.getElementById("successBoxes").innerText = data.boxes;
     if (document.getElementById("successTotal"))
