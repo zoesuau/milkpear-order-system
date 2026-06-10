@@ -6,9 +6,8 @@ let currentUserId = ""; // 全域儲存 LINE UID
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 document.addEventListener("DOMContentLoaded", function () {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
- // 1. 初始化 LINE LIFF
+  // 1. 初始化 LINE LIFF
 
-  
   liff
     .init({
       liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
@@ -370,17 +369,16 @@ async function submitOrder(e) {
       document.getElementById("successPayment").innerText = data.paymentMethod;
     if (document.getElementById("successDate"))
       document.getElementById("successDate").innerText = data.shippingDate;
-  if (document.getElementById("successReceiverName"))
-  document.getElementById("successReceiverName").innerText = data.name;
+    if (document.getElementById("successReceiverName"))
+      document.getElementById("successReceiverName").innerText = data.name;
 
-if (document.getElementById("successReceiverPhone"))
-  document.getElementById("successReceiverPhone").innerText = data.phone;
+    if (document.getElementById("successReceiverPhone"))
+      document.getElementById("successReceiverPhone").innerText = data.phone;
 
-if (document.getElementById("successReceiverAddress"))
-  document.getElementById("successReceiverAddress").innerText = data.address;
+    if (document.getElementById("successReceiverAddress"))
+      document.getElementById("successReceiverAddress").innerText =
+        data.address;
 
-
-    
     const transferAlert = document.getElementById("transferAlertBlock");
     const codAlert = document.getElementById("codAlertBlock");
     if (data.paymentMethod === "貨到付款") {
@@ -473,11 +471,15 @@ function renderHistoryList() {
       : "";
 
     const cardHtml = `
-            <div class="history-card" style="border: 1px solid #EDEAE1; padding: 15px; border-radius: 12px; margin-bottom: 15px; background: #FFF;">
-              <div class="history-card-header" style="display:flex; justify-content:space-between; border-bottom: 1px dashed #EDEAE1; padding-bottom:8px; margin-bottom:8px; font-weight:bold;">
-                <span>✓ 訂單 ${index + 1}：收件人 ${order.name} (${order.phone})</span>
-                <span style="color: var(--accent-color); font-size: 1.1em;">應付總額：$ ${order.total} 元</span>
-              </div>
+            <div class="history-card" style="border: 1px solid #EDEAE1; padding: 15px; border-radius: 12px; margin-bottom: 15px; background: #F8F6F1;">
+              <div class="history-card-header" style="
+  display:flex;
+  flex-direction:column;
+  border-bottom: 1px dashed #EDEAE1;
+  padding-bottom:8px;
+  margin-bottom:8px;
+  font-weight:bold;
+">
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
                 <div class="history-item-row">
                   <span class="history-item-label" style="color:var(--text-muted);">品項明細：</span><span>${itemDetailsText}</span>
