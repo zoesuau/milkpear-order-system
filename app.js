@@ -471,15 +471,25 @@ function renderHistoryList() {
       : "";
 
     const cardHtml = `
-            <div class="history-card" style="border: 1px solid #EDEAE1; padding: 15px; border-radius: 12px; margin-bottom: 15px; background: #F8F6F1;">
-              <div class="history-card-header" style="
-  display:flex;
-  flex-direction:column;
+           <div class="history-card-header" style="
   border-bottom: 1px dashed #EDEAE1;
   padding-bottom:8px;
   margin-bottom:8px;
   font-weight:bold;
 ">
+  <span>
+    ✓ 訂單 ${index + 1}：收件人 ${order.name} (${order.phone})
+  </span>
+
+  <br>
+
+  <span style="
+    color: var(--accent-color);
+    font-size: 1.1em;
+  ">
+    應付總額：$ ${order.total} 元
+  </span>
+</div>
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
                 <div class="history-item-row">
                   <span class="history-item-label" style="color:var(--text-muted);">品項明細：</span><span>${itemDetailsText}</span>
