@@ -24,7 +24,9 @@ body {
   margin: 0;
   padding: 40px 12px;
 }
-
+button {
+  touch-action: manipulation;
+}
 .container {
   max-width: 720px;
   margin: 0 auto;
