@@ -402,12 +402,19 @@ async function submitOrder(e) {
     orderHistoryList.push(data);
     renderHistoryList();
 
-    if (document.getElementById("successBlock")) {
-      document.getElementById("successBlock").style.display = "block";
-      document
-        .getElementById("successBlock")
-        .scrollIntoView({ behavior: "smooth" });
-    }
+   if (document.getElementById("successBlock")) {
+  document.getElementById("successBlock").style.display = "block";
+
+  if (orderHistoryList.length >= 2) {
+    document
+      .getElementById("historySection")
+      ?.scrollIntoView({ behavior: "smooth" });
+  } else {
+    document
+      .getElementById("successBlock")
+      ?.scrollIntoView({ behavior: "smooth" });
+  }
+}
     if (btn) btn.innerText = "訂單已成功送出！";
 
     // 如果想要讓使用者送完單自動關閉 LIFF 視窗，可以在這裡解開註解：
