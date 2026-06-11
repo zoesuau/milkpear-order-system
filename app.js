@@ -402,10 +402,15 @@ async function submitOrder(e) {
     orderHistoryList.push(data);
     renderHistoryList();
 
+    
+    //捲動到成功區
+
+    
    if (document.getElementById("successBlock")) {
   document.getElementById("successBlock").style.display = "block";
-
-
+  document
+    .getElementById("successBlock")
+    ?.scrollIntoView({ behavior: "smooth" });
 }
     if (btn) btn.innerText = "訂單已成功送出！";
 
