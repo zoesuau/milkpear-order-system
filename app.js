@@ -605,9 +605,9 @@ function renderHistoryList() {
     container.insertAdjacentHTML("beforeend", cardHtml);
   });
 
-  const historySection = document.getElementById("historySection");
-  if (historySection) {
-    historySection.style.display =
-      orderHistoryList.length >= 2 ? "block" : "none";
+const historySection = document.getElementById("historySection");
+if (historySection) {
+  historySection.style.display =
+    orderHistoryList.length ? "block" : "none";
   }
 }
