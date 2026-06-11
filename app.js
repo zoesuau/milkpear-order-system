@@ -497,7 +497,7 @@ function renderHistoryList() {
     <span style="
       color: var(--accent-color);
       font-weight:bold;
-      font-size:1.5rem;
+      font-size:1.8rem;
     ">
       $ ${order.total}
     </span>
@@ -506,7 +506,7 @@ function renderHistoryList() {
   <div style="line-height:1.5;">
     <div>收件人｜${order.name}</div>
     <div>聯絡電話｜${order.phone}</div>
-    <div>宅配地址｜${order.address}</div>
+    <div>配送地址｜${order.address}</div>
   </div>
   </div>
     
@@ -520,7 +520,7 @@ function renderHistoryList() {
                 ${codFeeText}
            
                 <div class="history-item-row">
-                  <span class="history-item-label" style="color:var(--text-muted);">出貨日期：</span><span style="font-weight:bold;">${order.shippingDate}</span>
+                  <span class="history-item-label" style="color:var(--text-muted);">預訂出貨日：</span><span style="font-weight:bold;">${order.shippingDate}</span>
                 </div>
                 <div class="history-item-row" style="border-top: 1px solid #F5F2EC; margin-top: 6px; padding-top: 6px;">
                   <span class="history-item-label" style="color:var(--text-muted);">寄件人姓名：</span><span>${order.senderName}</span>
