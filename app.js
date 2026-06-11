@@ -526,10 +526,17 @@ function renderHistoryList() {
                   <span class="history-item-label" style="color:var(--text-muted);">寄件人姓名：</span><span>${order.senderName}</span>
                 </div>
                 <div class="history-item-row">
-                  <span class="history-item-label" style="color:var(--text-muted);">寄件人電話：</span><span>${order.senderPhone}</span>
-                </div>
-                <div class="history-item-row" style="background-color: var(--secondary-color); padding: 6px 10px; border-radius: 8px; margin-top: 8px;">
-                  <span class="history-item-label" style="color: var(--primary-color); font-weight:bold;">付款狀態：</span><span style="color: var(--primary-color); font-weight: bold;">${order.paymentMethod}（後台處理中）</span>
+                  <span class="history-item-label" background-color: var(--secondary-color);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+">
+  <strong style="color:var(--primary-color);">
+    ${order.paymentMethod}
+  </strong>
+  <span style="color:var(--primary-color);">
+    （後台處理中）
+  </span>
                 </div>
                 ${noteHtml}
               </div>
