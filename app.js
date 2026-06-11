@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const shippingDateInput = document.getElementById("shippingDate");
   if (shippingDateInput) {
     const today = new Date().toISOString().split("T")[0];
-    selectedDate < today;
+    shippingDateInput.min = today;
   }
 
   // 4. 監聽付款方式變更與表單送出事件
