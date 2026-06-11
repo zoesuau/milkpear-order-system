@@ -484,20 +484,35 @@ function renderHistoryList() {
       padding-bottom:8px;
       margin-bottom:8px;
       font-weight:bold;
+    "><div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:8px;
+  ">
+    <span style="font-weight:bold;">
+      ✓ 訂單 ${index + 1}
+    </span>
+
+    <span style="
+      color: var(--accent-color);
+      font-weight:bold;
+      font-size:1.1rem;
     ">
-      <span>
-        ✓ 訂單 ${index + 1}：收件人 ${order.name} (${order.phone})
-      </span>
+      $ ${order.total}
+    </span>
+  </div>
 
-      <br>
-
-      <span style="
-        color: var(--accent-color);
-        font-size: 1.1em;
-      ">
-        應付總額：$ ${order.total} 元
-      </span>
+  <div style="
+    color: var(--text-color);
+    line-height:1.5;
+  ">
+    <div>${order.name}</div>
+    <div style="font-size:0.9rem;color:var(--text-muted);">
+      ${order.phone}
     </div>
+  </div>
+    
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
                 <div class="history-item-row">
                   <span class="history-item-label" style="color:var(--text-muted);">品項明細：</span><span>${itemDetailsText}</span>
