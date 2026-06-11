@@ -497,20 +497,17 @@ function renderHistoryList() {
     <span style="
       color: var(--accent-color);
       font-weight:bold;
-      font-size:1.1rem;
+      font-size:1.5rem;
     ">
       $ ${order.total}
     </span>
   </div>
 
-  <div style="
-    color: var(--text-color);
-    line-height:1.5;
-  ">
-    <div>${order.name}</div>
-    <div style="font-size:0.9rem;color:var(--text-muted);">
-      ${order.phone}
-    </div>
+  <div style="line-height:1.5;">
+    <div>收件人｜${order.name}</div>
+    <div>聯絡電話｜${order.phone}</div>
+    <div>宅配地址｜${order.address}</div>
+  </div>
   </div>
     
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
@@ -521,9 +518,7 @@ function renderHistoryList() {
                   <span class="history-item-label" style="color:var(--text-muted);">黑貓運費：</span><span>${shippingText}</span>
                 </div>
                 ${codFeeText}
-                <div class="history-item-row">
-                  <span class="history-item-label" style="color:var(--text-muted);">宅配地址：</span><span>${order.address}</span>
-                </div>
+           
                 <div class="history-item-row">
                   <span class="history-item-label" style="color:var(--text-muted);">出貨日期：</span><span style="font-weight:bold;">${order.shippingDate}</span>
                 </div>
