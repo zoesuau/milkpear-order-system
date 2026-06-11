@@ -405,15 +405,7 @@ async function submitOrder(e) {
    if (document.getElementById("successBlock")) {
   document.getElementById("successBlock").style.display = "block";
 
-  if (orderHistoryList.length >= 2) {
-    document
-      .getElementById("historySection")
-      ?.scrollIntoView({ behavior: "smooth" });
-  } else {
-    document
-      .getElementById("successBlock")
-      ?.scrollIntoView({ behavior: "smooth" });
-  }
+
 }
     if (btn) btn.innerText = "訂單已成功送出！";
 
