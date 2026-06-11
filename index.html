@@ -714,65 +714,28 @@
         >
           ✓
         </div>
-        <h2 style="color: var(--primary-color); margin: 0 0 10px 0">
-          訂單送出成功！
-        </h2>
-        <p style="color: var(--text-color); margin: 0 0 15px 0">
-          感謝您的訂購，本筆訂單核對統整如下：
-        </p>
+      
+<div style="
+  font-size:48px;
+  color:var(--primary-color);
+  margin-bottom:8px;
+">
+  ✓
+</div>
+
+<h2 style="
+  color:var(--primary-color);
+  margin:0 0 15px 0;
+">
+  訂單送出成功！
+</h2>
+
+<p>
+  訂單內容已同步發送至 LINE 訊息，
+  請依下方說明完成付款。
+</p>
 
         <div class="payment-instruction-box">
-          <h4>💰 訂單款項統整：</h4>
-          <div
-            style="padding-left: 10px; margin-bottom: 10px; line-height: 1.6"
-          >
-          • 收件人姓名：<span 
-          id="successReceiverName"
-           style="font-weight: bold"
-           ></span
-           ><br />
-          • 收件人電話：<span
-           id="successReceiverPhone"  
-           style="font-weight: bold"
-           ></span
-           ><br />
-           • 收件人地址：<span
-            id="successReceiverAddress" 
-           style="font-weight: bold"
-           ></span
-           ><br />
-
-
-            • 訂購人姓名：<span
-              id="successName"
-              style="font-weight: bold"
-            ></span
-            ><br />
-            • 商品總盒數：<span
-              id="successBoxes"
-              style="font-weight: bold"
-            ></span>
-            盒<br />
-            • 應付總金額：<span
-              id="successTotal"
-              style="
-                font-weight: bold;
-                color: var(--accent-color);
-                font-size: 1.1em;
-              "
-            ></span>
-            元<br />
-            • 選擇付款方式：<span
-              id="successPayment"
-              style="font-weight: bold; color: var(--primary-color)"
-            ></span
-            ><br />
-            • 指定出貨日期：<span
-              id="successDate"
-              style="font-weight: bold"
-            ></span>
-          </div>
-
           <!-- 轉帳匯款指引色塊 -->
           <div
             id="transferAlertBlock"
@@ -830,16 +793,27 @@
           增加下一筆訂單
         </button>
 
-        <div class="modify-notice">
-          💡 <strong>發現資料填錯了？</strong><br />
-         1. 請點擊「增加下一筆訂單」按鈕，<br />
-         2.重新填寫正確資料，<br />
-         3.並在最下方的<strong
-           「4. 訂單備註」</strong
-          >內註明<em><br />『此筆為修改上一筆收件人姓名為王大同的訂單內容，請以此筆為準』</em>再送出即可。
-        </div>
-      </div>
+       <details class="modify-notice">
+            <summary>
+    💡 發現資料填錯了？
+  </summary>
 
+  <div style="margin-top:10px;">
+    1. 點擊「增加下一筆訂單」<br>
+    2. 重新填寫正確資料<br>
+    3. 在訂單備註註明：
+    <br><br>
+
+    <em>
+      此筆為修改上一筆收件人姓名為王大同的訂單內容，
+      請以此筆為準。
+    </em>
+        </div>
+ </details>
+
+          </div>
+
+         
       <!-- 歷史訂單清單區塊 -->
       <div id="historySection" class="history-section" style="display: none; margin-top:24px;">
         <div class="history-title" style= "padding:0 15px;margin-bottom:12px;" >
