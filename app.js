@@ -520,11 +520,54 @@ function renderHistoryList() {
     </span>
   </div>
 
-  <div style="line-height:1.5;">
-    <div>收件人｜${order.name}</div>
-    <div>聯絡電話｜${order.phone}</div>
-    <div>配送地址｜${order.address}</div>
-  </div>
+ <div style="
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+  margin-bottom:4px;
+">
+  <span style="
+    color:var(--text-muted);
+    flex-shrink:0;
+  ">
+    收件人｜
+  </span>
+  <span>${order.name}</span>
+</div>
+
+<div style="
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+  margin-bottom:4px;
+">
+  <span style="
+    color:var(--text-muted);
+    flex-shrink:0;
+  ">
+    聯絡電話｜
+  </span>
+  <span>${order.phone}</span>
+</div>
+
+<div style="
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+">
+  <span style="
+    color:var(--text-muted);
+    flex-shrink:0;
+  ">
+    配送地址｜
+  </span>
+  <span style="
+    flex:1;
+    word-break:break-word;
+  ">
+    ${order.address}
+  </span>
+</div>
   </div>
     
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
