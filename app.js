@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const shippingDateInput = document.getElementById("shippingDate");
   if (shippingDateInput) {
     const today = new Date().toISOString().split("T")[0];
-    shippingDateInput.min = today;
+    selectedDate < today;
   }
 
   // 4. 監聽付款方式變更與表單送出事件
@@ -97,12 +97,22 @@ function handlePaymentChange() {
 // 檢查出貨日是否為周一二三
 function validateShippingDate(dateString) {
   if (!dateString) return;
-  const dateObj = new Date(dateString);
-  const dayOfWeek = dateObj.getDay();
 
-  // 0:週日, 4:週四, 5:週五, 6:週六
+  const selectedDate = new Date(dateString);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (selectedDate < today) {
+    alert("不能選擇今天以前的日期");
+    document.getElementById("shippingDate").value = "";
+    return;
+  }
+
+  const dayOfWeek = selectedDate.getDay();
+
   if ([0, 4, 5, 6].includes(dayOfWeek)) {
-    alert("抱歉！固定出貨日期為週一、週二、週三，請重新選取適當日期。");
+    alert("抱歉！固定出貨日期為週一、週二、週三");
     document.getElementById("shippingDate").value = "";
   }
 }
