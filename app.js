@@ -18,22 +18,34 @@ document.addEventListener("DOMContentLoaded", function () {
         liff.login();
       } else {
         liff
-          .getProfile()
-          .then((profile) => {
-            currentUserId = profile.userId;
-            // 同步填入隱藏欄位
-            const uidInput = document.getElementById("lineUserIdInput");
-            if (uidInput) uidInput.value = currentUserId;
-            console.log("成功撈到 UID 並填入欄位:", currentUserId);
-          })
-          .catch((err) => {
-            console.error("撈取 LINE Profile 失敗:", err);
-          });
-      }
-    })
-    .catch((err) => {
-      console.error("LIFF 初始化失敗:", err);
-    });
+         .getProfile()
+.then((profile) => {
+
+  currentUserId = profile.userId;
+
+  window.currentLineName =
+    profile.displayName;
+
+  // 同步填入隱藏欄位
+  const uidInput =
+    document.getElementById(
+      "lineUserIdInput"
+    );
+
+  if (uidInput)
+    uidInput.value = currentUserId;
+
+  console.log(
+    "UID:",
+    currentUserId
+  );
+
+  console.log(
+    "LINE名稱:",
+    profile.displayName
+  );
+
+})
 
   // 2. 初始化台灣地址選擇器
   if (document.getElementById("twzipcode_wrap")) {
@@ -326,22 +338,26 @@ async function submitOrder(e) {
     paymentMethod === "轉帳匯款" ? "由人工對帳後另行告知" : shippingDate;
 
   // 封裝要傳給 GAS 的完美 JSON 結構
-  const data = {
-    lineUserId: lineUserId,
-    senderName: senderName,
-    senderPhone: senderPhone,
-    name: receiverName,
-    phone: receiverPhone,
-    address: fullAddress,
-    paymentMethod: paymentMethod,
-    shippingDate: finalDateText,
-    note: note,
-    shippingFee: shipping,
-    codFee: codFeeSaved,
-    total: total,
-    boxes: boxes,
-    items: orderItems,
-  };
+ const data = {
+  lineUserId: lineUserId,
+
+  lineDisplayName:
+    window.currentLineName,
+
+  senderName: senderName,
+  senderPhone: senderPhone,
+  name: receiverName,
+  phone: receiverPhone,
+  address: fullAddress,
+  paymentMethod: paymentMethod,
+  shippingDate: finalDateText,
+  note: note,
+  shippingFee: shipping,
+  codFee: codFeeSaved,
+  total: total,
+  boxes: boxes,
+  items: orderItems,
+};
 
   const btn =
     document.getElementById("submitBtn") ||
