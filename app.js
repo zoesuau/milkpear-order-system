@@ -9,44 +9,64 @@ document.addEventListener("DOMContentLoaded", function () {
   // 1. 初始化 LINE LIFF
 
   liff
-    .init({
-      liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
-    })
-    .then(() => {
-      console.log("LIFF 初始化成功！");
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
-        liff
-         .getProfile()
-.then((profile) => {
+  .init({
+    liffId: "2010333281-Ra5txFF3",
+  })
+  .then(() => {
 
-  currentUserId = profile.userId;
-
-  window.currentLineName =
-    profile.displayName;
-
-  // 同步填入隱藏欄位
-  const uidInput =
-    document.getElementById(
-      "lineUserIdInput"
+    console.log(
+      "LIFF 初始化成功！"
     );
 
-  if (uidInput)
-    uidInput.value = currentUserId;
+    if (!liff.isLoggedIn()) {
 
-  console.log(
-    "UID:",
-    currentUserId
-  );
+      liff.login();
 
-  console.log(
-    "LINE名稱:",
-    profile.displayName
-  );
+    } else {
 
-})
+      liff
+        .getProfile()
+        .then((profile) => {
 
+          currentUserId =
+            profile.userId;
+
+          window.currentLineName =
+            profile.displayName;
+
+          const uidInput =
+            document.getElementById(
+              "lineUserIdInput"
+            );
+
+          if (uidInput) {
+            uidInput.value =
+              currentUserId;
+          }
+
+          console.log(
+            "UID:",
+            currentUserId
+          );
+
+          console.log(
+            "LINE名稱:",
+            profile.displayName
+          );
+
+        })
+        .catch((err) => {
+
+          console.error(
+            "撈取 LINE Profile 失敗:",
+            err
+          );
+
+        });
+
+    }
+
+  });
   // 2. 初始化台灣地址選擇器
   if (document.getElementById("twzipcode_wrap")) {
     citySelector = new TwCitySelector({
