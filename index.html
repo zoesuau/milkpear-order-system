@@ -655,27 +655,20 @@
             </select>
           </div>
           <div class="form-group">
-            <label
-              >指定出貨日期
-              <span
-                id="dateRequiredStar"
-                style="color: var(--accent-color); display: none"
-                >*</span
-              ></label
-            >
-            <input
-              id="shippingDate"
-              type="date"
-              onchange="validateShippingDate(this.value)"
-            />
+            <label for="requestedShippingBatchId">希望寄出批次 *</label>
+            <select id="requestedShippingBatchId" required disabled>
+              <option value="">批次讀取中...</option>
+            </select>
             <div
-              id="shippingDateNotice"
+              id="shippingBatchStatus"
               style="
                 font-size: 0.85em;
                 color: var(--text-muted);
                 margin-top: 4px;
               "
-            ></div>
+            >
+              正在讀取可選批次...
+            </div>
           </div>
 
           <!-- 4. 訂單備註 -->
