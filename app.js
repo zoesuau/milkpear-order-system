@@ -1,7 +1,27 @@
+const DEV_MODE = true;
+async function initApp() {
+  if (DEV_MODE) {
+    currentUserId = "TEST_USER_001";
+    return;
+  }
+
+  await liff.init({
+    liffId: "你的LIFF_ID",
+  });
+
+  if (!liff.isLoggedIn()) {
+    liff.login();
+    return;
+  }
+
+  const profile = await liff.getProfile();
+  currentUserId = profile.userId;
+}
 let citySelector;
 let orderHistoryList = [];
 let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
+let shippingBatchesReady = false;
 
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 document.addEventListener("DOMContentLoaded", function () {
@@ -9,64 +29,32 @@ document.addEventListener("DOMContentLoaded", function () {
   // 1. 初始化 LINE LIFF
 
   liff
-  .init({
-    liffId: "2010333281-Ra5txFF3",
-  })
-  .then(() => {
+    .init({
+      liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
+    })
+    .then(() => {
+      console.log("LIFF 初始化成功！");
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      } else {
+        liff
+          .getProfile()
+          .then((profile) => {
+            currentUserId = profile.userId;
+            // 同步填入隱藏欄位
+            const uidInput = document.getElementById("lineUserIdInput");
+            if (uidInput) uidInput.value = currentUserId;
+            console.log("成功撈到 UID 並填入欄位:", currentUserId);
+          })
+          .catch((err) => {
+            console.error("撈取 LINE Profile 失敗:", err);
+          });
+      }
+    })
+    .catch((err) => {
+      console.error("LIFF 初始化失敗:", err);
+    });
 
-    console.log(
-      "LIFF 初始化成功！"
-    );
-
-    if (!liff.isLoggedIn()) {
-
-      liff.login();
-
-    } else {
-
-      liff
-        .getProfile()
-        .then((profile) => {
-
-          currentUserId =
-            profile.userId;
-
-          window.currentLineName =
-            profile.displayName;
-
-          const uidInput =
-            document.getElementById(
-              "lineUserIdInput"
-            );
-
-          if (uidInput) {
-            uidInput.value =
-              currentUserId;
-          }
-
-          console.log(
-            "UID:",
-            currentUserId
-          );
-
-          console.log(
-            "LINE名稱:",
-            profile.displayName
-          );
-
-        })
-        .catch((err) => {
-
-          console.error(
-            "撈取 LINE Profile 失敗:",
-            err
-          );
-
-        });
-
-    }
-
-  });
   // 2. 初始化台灣地址選擇器
   if (document.getElementById("twzipcode_wrap")) {
     citySelector = new TwCitySelector({
@@ -77,12 +65,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // 3. 設定出貨日期最小值為今日
-  const shippingDateInput = document.getElementById("shippingDate");
-  if (shippingDateInput) {
-    const today = new Date().toISOString().split("T")[0];
-    shippingDateInput.min = today;
-  }
+  // 3. 讀取可選的希望寄出批次
+  fetchShippingBatches();
 
   // 4. 監聽付款方式變更與表單送出事件
   const paymentMethodSelect = document.getElementById("paymentMethod");
@@ -99,53 +83,93 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // 付款方式切換邏輯
 function handlePaymentChange() {
-  const payMethodInput = document.getElementById("paymentMethod");
-  const dateInput = document.getElementById("shippingDate");
-  const dateNotice = document.getElementById("shippingDateNotice");
-  const star = document.getElementById("dateRequiredStar");
-
-  if (!payMethodInput || !dateInput) return;
-  const payMethod = payMethodInput.value;
-
-  if (payMethod === "轉帳匯款") {
-    dateInput.value = "";
-    dateInput.disabled = true;
-    dateInput.required = false;
-    if (star) star.style.display = "none";
-    if (dateNotice) {
-      dateNotice.innerHTML = `<span style="color:var(--accent-color); font-weight:bold;">💡 確認收到款項後會於 LINE 告知出貨時間，無需填寫此欄</span>`;
-    }
-  } else {
-    dateInput.disabled = false;
-    dateInput.required = true;
-    if (star) star.style.display = "inline";
-    if (dateNotice) {
-      dateNotice.innerHTML = `<span>⚠️ 固定出貨日期為週一、週二、週三，請點擊欄位選擇日期。</span>`;
-    }
-  }
   calculate();
 }
 
-// 檢查出貨日是否為周一二三
-function validateShippingDate(dateString) {
-  if (!dateString) return;
+async function fetchShippingBatches() {
+  const select = document.getElementById("requestedShippingBatchId");
+  const status = document.getElementById("shippingBatchStatus");
+  const submitButton =
+    document.getElementById("submitBtn") ||
+    document.querySelector(".submit-btn");
 
-  const selectedDate = new Date(dateString);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (selectedDate < today) {
-    alert("不能選擇今天以前的日期");
-    document.getElementById("shippingDate").value = "";
-    return;
+  shippingBatchesReady = false;
+  if (select) {
+    select.disabled = true;
+    select.innerHTML = '<option value="">批次讀取中...</option>';
   }
+  if (submitButton) submitButton.disabled = true;
 
-  const dayOfWeek = selectedDate.getDay();
+  try {
+    const gasUrl =
+      "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
+    const requestUrl = new URL(gasUrl);
+    requestUrl.searchParams.set("action", "readShippingBatches");
+    requestUrl.searchParams.set("t", String(Date.now()));
 
-  if ([0, 4, 5, 6].includes(dayOfWeek)) {
-    alert("抱歉！固定出貨日期為週一、週二、週三");
-    document.getElementById("shippingDate").value = "";
+    const response = await fetch(requestUrl.toString(), {
+      method: "GET",
+      cache: "no-store",
+    });
+    const payload = await response.json();
+
+    if (
+      !response.ok ||
+      payload?.ok !== true ||
+      payload?.action !== "readShippingBatches" ||
+      !Array.isArray(payload.batches) ||
+      payload.batches.length === 0
+    ) {
+      throw new Error("SHIPPING_BATCHES_UNAVAILABLE");
+    }
+
+    const batches = payload.batches.map((batch) => {
+      const normalized = {
+        batchId: String(batch?.batchId ?? "").trim(),
+        displayLabel: String(batch?.displayLabel ?? "").trim(),
+        shippingStartDate: String(batch?.shippingStartDate ?? "").trim(),
+        shippingEndDate: String(batch?.shippingEndDate ?? "").trim(),
+        sortOrder: batch?.sortOrder,
+      };
+
+      if (
+        !normalized.batchId ||
+        !normalized.displayLabel ||
+        !normalized.shippingStartDate ||
+        !normalized.shippingEndDate ||
+        !Number.isInteger(normalized.sortOrder)
+      ) {
+        throw new Error("SHIPPING_BATCHES_INVALID_RESPONSE");
+      }
+
+      return normalized;
+    });
+
+    select.innerHTML = '<option value="">請選擇希望寄出批次</option>';
+    batches.forEach((batch) => {
+      const option = document.createElement("option");
+      option.value = batch.batchId;
+      option.textContent = batch.displayLabel;
+      select.appendChild(option);
+    });
+
+    select.disabled = false;
+    shippingBatchesReady = true;
+    if (submitButton) submitButton.disabled = false;
+    if (status) {
+      status.textContent = "請選擇一個希望寄出批次。";
+      status.style.color = "";
+    }
+  } catch (error) {
+    if (select) {
+      select.disabled = true;
+      select.innerHTML = '<option value="">批次讀取失敗</option>';
+    }
+    if (submitButton) submitButton.disabled = true;
+    if (status) {
+      status.textContent = "目前無法讀取寄出批次，請稍後重新整理頁面。";
+      status.style.color = "var(--accent-color)";
+    }
   }
 }
 
@@ -313,8 +337,10 @@ async function submitOrder(e) {
   const paymentMethod = document.getElementById("paymentMethod")
     ? document.getElementById("paymentMethod").value
     : "轉帳匯款";
-  const shippingDate = document.getElementById("shippingDate")
-    ? document.getElementById("shippingDate").value
+  const requestedShippingBatchId = document.getElementById(
+    "requestedShippingBatchId",
+  )
+    ? document.getElementById("requestedShippingBatchId").value.trim()
     : "";
   const noteEl = document.getElementById("note");
   const note = noteEl ? noteEl.value : "";
@@ -332,8 +358,13 @@ async function submitOrder(e) {
     return;
   }
 
-  if (paymentMethod === "貨到付款" && !shippingDate) {
-    alert("選擇貨到付款，請必須指定出貨日期！");
+  if (!shippingBatchesReady) {
+    alert("寄出批次尚未載入完成，請稍後再試。");
+    return;
+  }
+
+  if (!requestedShippingBatchId) {
+    alert("請選擇希望寄出批次！");
     return;
   }
 
@@ -354,30 +385,23 @@ async function submitOrder(e) {
   });
 
   const codFeeSaved = paymentMethod === "貨到付款" ? "30" : "0";
-  const finalDateText =
-    paymentMethod === "轉帳匯款" ? "由人工對帳後另行告知" : shippingDate;
-
   // 封裝要傳給 GAS 的完美 JSON 結構
- const data = {
-  lineUserId: lineUserId,
-
-  lineDisplayName:
-    window.currentLineName,
-
-  senderName: senderName,
-  senderPhone: senderPhone,
-  name: receiverName,
-  phone: receiverPhone,
-  address: fullAddress,
-  paymentMethod: paymentMethod,
-  shippingDate: finalDateText,
-  note: note,
-  shippingFee: shipping,
-  codFee: codFeeSaved,
-  total: total,
-  boxes: boxes,
-  items: orderItems,
-};
+  const data = {
+    lineUserId: lineUserId,
+    senderName: senderName,
+    senderPhone: senderPhone,
+    name: receiverName,
+    phone: receiverPhone,
+    address: fullAddress,
+    paymentMethod: paymentMethod,
+    requestedShippingBatchId: requestedShippingBatchId,
+    note: note,
+    shippingFee: shipping,
+    codFee: codFeeSaved,
+    total: total,
+    boxes: boxes,
+    items: orderItems,
+  };
 
   const btn =
     document.getElementById("submitBtn") ||
@@ -398,11 +422,31 @@ async function submitOrder(e) {
       "t=" +
       new Date().getTime();
 
-    await fetch(noCacheUrl, {
+    const response = await fetch(noCacheUrl, {
       method: "POST",
-      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
       body: JSON.stringify(data),
     });
+    const result = await response.json();
+
+    if (
+      !response.ok ||
+      result?.status !== "success" ||
+      String(result?.requestedShippingBatchId ?? "").trim() !==
+        requestedShippingBatchId ||
+      !String(result?.requestedShippingBatchLabel ?? "").trim()
+    ) {
+      throw new Error(result?.message || "ORDER_SUBMIT_FAILED");
+    }
+
+    data.requestedShippingBatchId = String(
+      result.requestedShippingBatchId,
+    ).trim();
+    data.requestedShippingBatchLabel = String(
+      result.requestedShippingBatchLabel,
+    ).trim();
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
     if (document.getElementById("successName"))
@@ -413,8 +457,20 @@ async function submitOrder(e) {
       document.getElementById("successTotal").innerText = data.total;
     if (document.getElementById("successPayment"))
       document.getElementById("successPayment").innerText = data.paymentMethod;
-    if (document.getElementById("successDate"))
-      document.getElementById("successDate").innerText = data.shippingDate;
+    const successBlock = document.getElementById("successBlock");
+    if (successBlock) {
+      let batchSummary = document.getElementById("successShippingBatch");
+      if (!batchSummary) {
+        batchSummary = document.createElement("p");
+        batchSummary.id = "successShippingBatch";
+        const paymentBox = successBlock.querySelector(
+          ".payment-instruction-box",
+        );
+        successBlock.insertBefore(batchSummary, paymentBox || null);
+      }
+      batchSummary.textContent =
+        "希望寄出批次：" + data.requestedShippingBatchLabel;
+    }
     if (document.getElementById("successReceiverName"))
       document.getElementById("successReceiverName").innerText = data.name;
 
@@ -438,16 +494,19 @@ async function submitOrder(e) {
     orderHistoryList.push(data);
     renderHistoryList();
 
-    
-    //捲動到成功區
+    if (document.getElementById("successBlock")) {
+      document.getElementById("successBlock").style.display = "block";
 
-    
-   if (document.getElementById("successBlock")) {
-  document.getElementById("successBlock").style.display = "block";
-  document
-    .getElementById("successBlock")
-    ?.scrollIntoView({ behavior: "smooth" });
-}
+      if (orderHistoryList.length >= 2) {
+        document
+          .getElementById("historySection")
+          ?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        document
+          .getElementById("successBlock")
+          ?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
     if (btn) btn.innerText = "訂單已成功送出！";
 
     // 如果想要讓使用者送完單自動關閉 LIFF 視窗，可以在這裡解開註解：
@@ -612,9 +671,11 @@ function renderHistoryList() {
                 </div>
                 ${codFeeText}
            
-                <div class="history-item-row">
-                  <span class="history-item-label" style="color:var(--text-muted);">預訂出貨日：</span><span style="font-weight:bold;">${order.shippingDate}</span>
-                </div>
+                ${
+                  order.requestedShippingBatchLabel
+                    ? `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">希望寄出批次：</span><span style="font-weight:bold;">${order.requestedShippingBatchLabel}</span></div>`
+                    : `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">預訂出貨日：</span><span style="font-weight:bold;">${order.shippingDate || ""}</span></div>`
+                }
                 <div class="history-item-row" style="border-top: 1px solid #F5F2EC; margin-top: 6px; padding-top: 6px;">
                   <span class="history-item-label" style="color:var(--text-muted);">寄件人姓名：</span><span>${order.senderName}</span>
                 </div>
@@ -638,9 +699,9 @@ function renderHistoryList() {
     container.insertAdjacentHTML("beforeend", cardHtml);
   });
 
-const historySection = document.getElementById("historySection");
-if (historySection) {
-  historySection.style.display =
-    orderHistoryList.length ? "block" : "none";
+  const historySection = document.getElementById("historySection");
+  if (historySection) {
+    historySection.style.display =
+      orderHistoryList.length >= 2 ? "block" : "none";
   }
 }
