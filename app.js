@@ -1409,6 +1409,6 @@ function renderHistoryList() {
   const historySection = document.getElementById("historySection");
   if (historySection) {
     historySection.style.display =
-      orderHistoryList.length >= 2 ? "block" : "none";
+      orderHistoryList.length >= 1 ? "block" : "none";
   }
 }
