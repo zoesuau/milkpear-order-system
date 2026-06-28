@@ -337,6 +337,17 @@ async function submitOrder(e) {
   const paymentMethod = document.getElementById("paymentMethod")
     ? document.getElementById("paymentMethod").value
     : "轉帳匯款";
+  const publicPaymentMap = {
+    轉帳匯款: {
+      paymentState: "bank_unpaid",
+      paymentMethod: "銀行轉帳",
+    },
+    貨到付款: {
+      paymentState: "cod",
+      paymentMethod: "貨到付款",
+    },
+  };
+  const publicPayment = publicPaymentMap[paymentMethod];
   const requestedShippingBatchId = document.getElementById(
     "requestedShippingBatchId",
   )
@@ -368,6 +379,12 @@ async function submitOrder(e) {
     return;
   }
 
+  if (!publicPayment) {
+    console.error("PUBLIC_PAYMENT_METHOD_NOT_ALLOWED", paymentMethod);
+    alert("訂單送出失敗，請稍後再試");
+    return;
+  }
+
   const fullAddress = `${county}${district}${detailAddr}`;
   const orderItems = [];
 
@@ -393,7 +410,8 @@ async function submitOrder(e) {
     name: receiverName,
     phone: receiverPhone,
     address: fullAddress,
-    paymentMethod: paymentMethod,
+    paymentState: publicPayment.paymentState,
+    paymentMethod: publicPayment.paymentMethod,
     requestedShippingBatchId: requestedShippingBatchId,
     note: note,
     shippingFee: shipping,
