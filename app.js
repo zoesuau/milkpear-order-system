@@ -16,11 +16,15 @@ async function initApp() {
 
   const profile = await liff.getProfile();
   currentUserId = profile.userId;
+  currentUserDisplayName = String(
+    profile && profile.displayName ? profile.displayName : "",
+  ).trim();
 }
 let citySelector;
 let orderHistoryList = [];
 let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
+let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let shippingBatchesReady = false;
 
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
@@ -41,6 +45,9 @@ document.addEventListener("DOMContentLoaded", function () {
           .getProfile()
           .then((profile) => {
             currentUserId = profile.userId;
+            currentUserDisplayName = String(
+              profile && profile.displayName ? profile.displayName : "",
+            ).trim();
             // 同步填入隱藏欄位
             const uidInput = document.getElementById("lineUserIdInput");
             if (uidInput) uidInput.value = currentUserId;
@@ -337,17 +344,6 @@ async function submitOrder(e) {
   const paymentMethod = document.getElementById("paymentMethod")
     ? document.getElementById("paymentMethod").value
     : "轉帳匯款";
-  const publicPaymentMap = {
-    轉帳匯款: {
-      paymentState: "bank_unpaid",
-      paymentMethod: "銀行轉帳",
-    },
-    貨到付款: {
-      paymentState: "cod",
-      paymentMethod: "貨到付款",
-    },
-  };
-  const publicPayment = publicPaymentMap[paymentMethod];
   const requestedShippingBatchId = document.getElementById(
     "requestedShippingBatchId",
   )
@@ -379,12 +375,6 @@ async function submitOrder(e) {
     return;
   }
 
-  if (!publicPayment) {
-    console.error("PUBLIC_PAYMENT_METHOD_NOT_ALLOWED", paymentMethod);
-    alert("訂單送出失敗，請稍後再試");
-    return;
-  }
-
   const fullAddress = `${county}${district}${detailAddr}`;
   const orderItems = [];
 
@@ -405,13 +395,13 @@ async function submitOrder(e) {
   // 封裝要傳給 GAS 的完美 JSON 結構
   const data = {
     lineUserId: lineUserId,
+    lineDisplayName: currentUserDisplayName,
     senderName: senderName,
     senderPhone: senderPhone,
     name: receiverName,
     phone: receiverPhone,
     address: fullAddress,
-    paymentState: publicPayment.paymentState,
-    paymentMethod: publicPayment.paymentMethod,
+    paymentMethod: paymentMethod,
     requestedShippingBatchId: requestedShippingBatchId,
     note: note,
     shippingFee: shipping,
