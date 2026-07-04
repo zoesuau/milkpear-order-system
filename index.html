@@ -650,7 +650,7 @@
           <div class="form-group">
             <label>付款方式</label>
             <select id="paymentMethod" required>
-              <option value="銀行轉帳">轉帳匯款 (匯款完成請提供後五碼)</option>
+              <option value="轉帳匯款">轉帳匯款 (匯款完成請提供後五碼)</option>
               <option value="貨到付款">黑貓貨到付款 (+30元手續費)</option>
             </select>
           </div>
@@ -773,7 +773,7 @@
         </button>
 
         <div class="modify-notice">
- 
+    
         </div>
       </div>
 
@@ -787,5 +787,65 @@
       </div>
     </div>
     <script src="./app.js"></script>
+    <script>
+      async function sendOrderSubmittedMessageToOaChat() {
+        try {
+          if (
+            !window.liff ||
+            typeof liff.sendMessages !== "function" ||
+            (typeof liff.isInClient === "function" && !liff.isInClient())
+          ) {
+            return;
+          }
+          await liff.sendMessages([{ type: "text", text: "訂單已送出" }]);
+        } catch (error) {
+          console.warn("訂單已送出訊息未能送到 OA 聊天室", error);
+        }
+      }
+
+      function isOrderSuccessBlockVisible() {
+        const successBlock = document.getElementById("successBlock");
+        return !!(
+          successBlock &&
+          successBlock.style.display !== "none" &&
+          successBlock.offsetParent !== null
+        );
+      }
+
+      function waitForOrderSuccessBlock(timeoutMs = 8000) {
+        const startedAt = Date.now();
+        return new Promise((resolve) => {
+          const check = () => {
+            if (isOrderSuccessBlockVisible()) {
+              resolve(true);
+              return;
+            }
+            if (Date.now() - startedAt >= timeoutMs) {
+              resolve(false);
+              return;
+            }
+            window.setTimeout(check, 250);
+          };
+          check();
+        });
+      }
+
+      (function attachOrderSubmittedChatMessageHook() {
+        const originalSubmitOrder = window.submitOrder;
+        if (typeof originalSubmitOrder !== "function") return;
+
+        window.submitOrder = async function (...args) {
+          const wasSuccessVisible = isOrderSuccessBlockVisible();
+          const result = originalSubmitOrder.apply(this, args);
+          await Promise.resolve(result);
+
+          const isSuccessVisible = await waitForOrderSuccessBlock();
+          if (!wasSuccessVisible && isSuccessVisible) {
+            await sendOrderSubmittedMessageToOaChat();
+          }
+          return result;
+        };
+      })();
+    </script>
   </body>
 </html>
