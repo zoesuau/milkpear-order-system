@@ -788,8 +788,25 @@
     </div>
     <script src="./app.js"></script>
     <script>
+      let orderSubmittedChatMessageSending = false;
+      let orderSubmittedSuccessWasVisible = false;
+
+      function waitForLiffReady(timeoutMs = 5000) {
+        const readyPromise =
+          window.liff && liff.ready && typeof liff.ready.then === "function"
+            ? liff.ready
+            : Promise.resolve();
+        const timeoutPromise = new Promise((resolve) => {
+          window.setTimeout(resolve, timeoutMs);
+        });
+        return Promise.race([readyPromise, timeoutPromise]);
+      }
+
       async function sendOrderSubmittedMessageToOaChat() {
+        if (orderSubmittedChatMessageSending) return;
+        orderSubmittedChatMessageSending = true;
         try {
+          await waitForLiffReady();
           if (
             !window.liff ||
             typeof liff.sendMessages !== "function" ||
@@ -800,6 +817,8 @@
           await liff.sendMessages([{ type: "text", text: "訂單已送出" }]);
         } catch (error) {
           console.warn("訂單已送出訊息未能送到 OA 聊天室", error);
+        } finally {
+          orderSubmittedChatMessageSending = false;
         }
       }
 
@@ -809,7 +828,18 @@
           successBlock &&
           successBlock.style.display !== "none" &&
           successBlock.offsetParent !== null
-        );
+          );
+      }
+
+      async function handleOrderSuccessBlockVisible() {
+        const isVisible = isOrderSuccessBlockVisible();
+        if (!isVisible) {
+          orderSubmittedSuccessWasVisible = false;
+          return;
+        }
+        if (orderSubmittedSuccessWasVisible) return;
+        orderSubmittedSuccessWasVisible = true;
+        await sendOrderSubmittedMessageToOaChat();
       }
 
       function waitForOrderSuccessBlock(timeoutMs = 8000) {
@@ -831,20 +861,31 @@
       }
 
       (function attachOrderSubmittedChatMessageHook() {
+        const successBlock = document.getElementById("successBlock");
+        if (successBlock && window.MutationObserver) {
+          new MutationObserver(handleOrderSuccessBlockVisible).observe(
+            successBlock,
+            {
+              attributes: true,
+              attributeFilter: ["style", "class", "hidden"],
+            },
+          );
+        }
+
         const originalSubmitOrder = window.submitOrder;
-        if (typeof originalSubmitOrder !== "function") return;
+        if (typeof originalSubmitOrder === "function") {
+          window.submitOrder = async function (...args) {
+            const result = originalSubmitOrder.apply(this, args);
+            await Promise.resolve(result);
 
-        window.submitOrder = async function (...args) {
-          const wasSuccessVisible = isOrderSuccessBlockVisible();
-          const result = originalSubmitOrder.apply(this, args);
-          await Promise.resolve(result);
-
-          const isSuccessVisible = await waitForOrderSuccessBlock();
-          if (!wasSuccessVisible && isSuccessVisible) {
-            await sendOrderSubmittedMessageToOaChat();
-          }
-          return result;
-        };
+            const isSuccessVisible = await waitForOrderSuccessBlock();
+            if (isSuccessVisible) {
+              await handleOrderSuccessBlockVisible();
+            }
+            return result;
+          };
+        }
+        handleOrderSuccessBlockVisible();
       })();
     </script>
   </body>
