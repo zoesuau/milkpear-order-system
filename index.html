@@ -1992,7 +1992,12 @@
             全部
           </button>
           <button onclick="filterByDateRange('今日', this)">今日</button>
-          <button onclick="filterByDateRange('本週', this)">本週</button>
+          <button
+            id="currentWeekFilterButton"
+            onclick="filterByDateRange('本週', this)"
+          >
+            本週
+          </button>
           <button onclick="filterByDateRange('本月', this)">本月</button>
           <button onclick="filterByDateRange('自訂', this)">自訂</button>
         </div>
@@ -6307,6 +6312,7 @@
           ?.addEventListener("click", refreshAdminOrdersManually);
 
         bindAdminWorkflowEvents();
+        updateCurrentWeekFilterLabel();
         calculateCardAmount("orderCard1");
         updateStatsCounters();
         handleBatchCheckChange();
@@ -6495,8 +6501,18 @@
 	      }
 
 	      function addDaysToDateString(dateString, days) {
-	        const date = new Date(`${dateString}T00:00:00+08:00`);
-	        date.setDate(date.getDate() + days);
+	        const matched = String(dateString || "").match(
+	          /^(\d{4})-(\d{2})-(\d{2})$/,
+	        );
+	        if (!matched) return "";
+
+	        const date = new Date(
+	          Date.UTC(
+	            Number(matched[1]),
+	            Number(matched[2]) - 1,
+	            Number(matched[3]) + Number(days || 0),
+	          ),
+	        );
 	        return date.toISOString().slice(0, 10);
 	      }
 
@@ -6510,12 +6526,46 @@
 
 	      function getCurrentWeekRange() {
 	        const today = getTaipeiToday();
-	        const date = new Date(`${today}T00:00:00+08:00`);
-	        const day = date.getDay() || 7;
+	        const matched = String(today || "").match(
+	          /^(\d{4})-(\d{2})-(\d{2})$/,
+	        );
+	        if (!matched) return { start: today, end: today };
+
+	        const date = new Date(
+	          Date.UTC(
+	            Number(matched[1]),
+	            Number(matched[2]) - 1,
+	            Number(matched[3]),
+	          ),
+	        );
+	        const day = date.getUTCDay() || 7;
 	        return {
 	          start: addDaysToDateString(today, 1 - day),
 	          end: addDaysToDateString(today, 7 - day),
 	        };
+	      }
+
+	      function formatAdminMonthDay(dateString) {
+	        const matched = String(dateString || "").match(
+	          /^(\d{4})-(\d{2})-(\d{2})$/,
+	        );
+	        if (!matched) return "";
+	        return `${Number(matched[2])}/${Number(matched[3])}`;
+	      }
+
+	      function updateCurrentWeekFilterLabel() {
+	        const button = document.getElementById("currentWeekFilterButton");
+	        if (!button) return;
+
+	        const range = getCurrentWeekRange();
+	        const startLabel = formatAdminMonthDay(range.start);
+	        const endLabel = formatAdminMonthDay(range.end);
+
+	        button.textContent =
+	          startLabel && endLabel
+	            ? `本週（${startLabel}～${endLabel}）`
+	            : "本週";
+	        button.setAttribute("aria-label", `本週 ${range.start} 至 ${range.end}`);
 	      }
 
 	      function isCardDateMatched(card) {
