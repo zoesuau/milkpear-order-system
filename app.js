@@ -258,183 +258,80 @@ function renderPublicProductCatalog() {
   if (!sectionRoot || !tabsRoot) return;
 
   const products = getActivePublicProducts();
+  const groups = groupProductsByVariety(products);
   tabsRoot.innerHTML = "";
 
   sectionRoot.innerHTML = `
-    <section class="product-order-panel">
-      <div class="product-category-heading">
-        <div>
-          <h2>商品內容</h2>
-          <p>可新增多種規格</p>
-        </div>
-        <span>${products.some(hasLimitedStock) ? "部分庫存有限" : "本期供應"}</span>
-      </div>
-      <div class="product-line-list" id="productLineList"></div>
-      <p class="product-category-note product-category-note-dynamic" id="twoPieceOrderNotice" style="display: none">
-        兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
-      </p>
-      <button type="button" class="product-add-btn product-add-line-btn" onclick="addProductLine()">+ 新增品項</button>
-      <div class="product-stock-hint">
-        商品圖為示意，實際規格與數量以下方選單為準。
-      </div>
-      <div class="product-hidden-inputs" aria-hidden="true">
-        ${products.map(renderHiddenQtyInput).join("")}
-      </div>
-    </section>
+    ${groups.map(renderProductVarietyPanel).join("")}
+    <p class="product-category-note product-category-note-dynamic" id="twoPieceOrderNotice" style="display: none">
+      兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
+    </p>
   `;
-  addProductLine();
-}
-
-function addProductLine(selectedId = "") {
-  const list = document.getElementById("productLineList");
-  if (!list) return;
-
-  const products = getActivePublicProducts();
-  const usedIds = getSelectedLineProductIds();
-  const nextProduct =
-    products.find(
-      (product) =>
-        product.id === selectedId ||
-        (!usedIds.includes(product.id) && getRemainingStock(product) !== 0),
-    ) || products[0];
-
-  if (!nextProduct) return;
-
-  list.insertAdjacentHTML(
-    "beforeend",
-    `
-      <div class="product-line-row">
-        <select class="product-line-select" onchange="handleProductLineChange(this)">
-          ${products.map((product) => renderProductOption(product, nextProduct.id)).join("")}
-        </select>
-        <span class="product-line-times">×</span>
-        <div class="product-line-qty-control">
-          <button type="button" class="product-line-qty-btn" onclick="stepProductLineQty(this, -1)">-</button>
-          <input class="product-line-qty" type="number" min="1" value="1" oninput="handleProductLineQtyChange(this)" />
-          <button type="button" class="product-line-qty-btn" onclick="stepProductLineQty(this, 1)">+</button>
-        </div>
-        <button type="button" class="product-line-delete" aria-label="移除品項" onclick="removeProductLine(this)">移除</button>
-      </div>
-    `,
-  );
-  syncProductLinesToHiddenInputs();
-}
-
-function getSelectedLineProductIds() {
-  return [...document.querySelectorAll(".product-line-select")]
-    .map((select) => select.value)
-    .filter(Boolean);
-}
-
-function handleProductLineChange(select) {
-  const rows = [...document.querySelectorAll(".product-line-row")];
-  const duplicated = rows.some(
-    (row) =>
-      row !== select.closest(".product-line-row") &&
-      row.querySelector(".product-line-select")?.value === select.value,
-  );
-  if (duplicated) {
-    alert("這個規格已經在清單中，請直接調整原本那列的數量。");
-    const fallback = getActivePublicProducts().find(
-      (product) => !getSelectedLineProductIds().includes(product.id),
-    );
-    if (fallback) select.value = fallback.id;
-  }
-  syncProductLinesToHiddenInputs();
-}
-
-function handleProductLineQtyChange(input) {
-  const minValue = parseInt(input.getAttribute("min"), 10) || 1;
-  if ((parseInt(input.value, 10) || 0) < minValue) {
-    input.value = minValue;
-  }
-  syncProductLinesToHiddenInputs();
-}
-
-function stepProductLineQty(button, step) {
-  const control = button.closest(".product-line-qty-control");
-  const input = control?.querySelector(".product-line-qty");
-  if (!input) return;
-
-  const minValue = parseInt(input.getAttribute("min"), 10) || 1;
-  const nextValue = Math.max(minValue, (parseInt(input.value, 10) || minValue) + step);
-  input.value = nextValue;
-  syncProductLinesToHiddenInputs();
-}
-
-function removeProductLine(button) {
-  const row = button.closest(".product-line-row");
-  if (!row) return;
-  row.remove();
-  if (!document.querySelector(".product-line-row")) {
-    addProductLine();
-    return;
-  }
-  syncProductLinesToHiddenInputs();
-}
-
-function syncProductLinesToHiddenInputs() {
-  document.querySelectorAll(".qty-input").forEach((input) => {
-    input.value = 0;
-  });
-
-  let hasInvalidStock = false;
-  [...document.querySelectorAll(".product-line-row")].forEach((row) => {
-    const select = row.querySelector(".product-line-select");
-    const qtyInput = row.querySelector(".product-line-qty");
-    const product = getPublicProductById(select?.value || "");
-    const qty = parseInt(qtyInput?.value || "0", 10) || 0;
-    if (!product || qty <= 0) return;
-
-    if (hasLimitedStock(product) && qty > product.stock) {
-      hasInvalidStock = true;
-      qtyInput.value = product.stock;
-    }
-
-    const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
-    if (hiddenInput) hiddenInput.value = hasLimitedStock(product) ? Math.min(qty, product.stock) : qty;
-  });
-
-  if (hasInvalidStock) {
-    alert("部分品項庫存不足，數量已調整為目前可購買盒數。");
-  }
   calculate();
 }
 
-function refreshProductLineOptions() {
-  document.querySelectorAll(".product-line-select").forEach((select) => {
-    const currentValue = select.value;
-    select.innerHTML = getActivePublicProducts()
-      .map((product) => renderProductOption(product, currentValue))
-      .join("");
-    select.value = currentValue;
+function groupProductsByVariety(products) {
+  const groupMap = {};
+  products.forEach((product) => {
+    if (!groupMap[product.variety]) {
+      groupMap[product.variety] = [];
+    }
+    groupMap[product.variety].push(product);
   });
-  updateTwoPieceOrderNotice();
-  renderSelectedProductSummary();
+  return Object.keys(groupMap).map((variety) => ({
+    variety,
+    products: groupMap[variety],
+  }));
 }
 
-function updateProductLinesFromHiddenInputs() {
-  const list = document.getElementById("productLineList");
-  if (!list) return;
+function renderProductVarietyPanel(group) {
+  const hasLimited = group.products.some(hasLimitedStock);
+  const hasTwoPiece = group.products.some((product) => product.category === "兩粒裝");
+  const hint = hasTwoPiece
+    ? "一般禮盒與兩顆裝可一起選，兩顆裝有最低出貨限制。"
+    : hasLimited
+      ? "季末少量供應，售完會即時標示。"
+      : "可直接調整盒數，系統會自動計算運費。";
 
-  const selectedProducts = getActivePublicProducts().filter((product) => {
-    const input = document.querySelector(`.qty-input[data-id="${product.id}"]`);
-    return (parseInt(input?.value || "0", 10) || 0) > 0;
-  });
+  return `
+    <section class="product-order-panel product-variety-panel">
+      <div class="product-category-heading">
+        <div>
+          <h2>${group.variety}</h2>
+        </div>
+        <span>${hasLimited ? "部分庫存有限" : "本期供應"}</span>
+      </div>
+      <div class="product-panel-hint">${hint}</div>
+      <div class="product-direct-list">
+        ${group.products.map(renderDirectProductRow).join("")}
+      </div>
+    </section>
+  `;
+}
 
-  list.innerHTML = "";
-  if (!selectedProducts.length) {
-    addProductLine();
-    return;
-  }
+function renderDirectProductRow(product) {
+  const categoryBadge =
+    product.category === "兩粒裝"
+      ? '<span class="product-direct-badge">兩顆裝</span>'
+      : "";
+  const stockText = hasLimitedStock(product)
+    ? `<span class="product-direct-stock">剩 ${product.stock} 盒</span>`
+    : "";
 
-  selectedProducts.forEach((product) => {
-    addProductLine(product.id);
-    const row = list.lastElementChild;
-    const qtyInput = row?.querySelector(".product-line-qty");
-    const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
-    if (qtyInput) qtyInput.value = parseInt(hiddenInput?.value || "1", 10) || 1;
-  });
+  return `
+    <div class="product-direct-row">
+      <div class="product-direct-info">
+        <div class="product-direct-title">
+          <strong>${product.grade}</strong>
+          ${categoryBadge}
+        </div>
+        <div class="product-direct-meta">
+          ${product.count}｜$${product.price.toLocaleString()} ${stockText}
+        </div>
+      </div>
+      ${renderQtyControl(product, "qty-input product-direct-input")}
+    </div>
+  `;
 }
 
 function getCategoryDisplayName(category) {
@@ -476,34 +373,9 @@ function getPublicProductById(id) {
   return PUBLIC_PRODUCT_CATALOG.find((product) => product.id === id) || null;
 }
 
-function addSelectedProductToOrder() {
-  syncProductLinesToHiddenInputs();
-}
-
-function adjustSelectedProductQty(id, step) {
-  const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
-  if (!hiddenInput) return;
-  const product = getPublicProductById(id);
-  const nextQty = Math.max(0, (parseInt(hiddenInput.value, 10) || 0) + step);
-  if (product && hasLimitedStock(product) && nextQty > product.stock) {
-    alert(`${product.grade} 目前剩 ${product.stock} 盒。`);
-    return;
-  }
-  hiddenInput.value = nextQty;
-  updateProductLinesFromHiddenInputs();
-  calculate();
-}
-
-function removeSelectedProduct(id) {
-  const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
-  if (!hiddenInput) return;
-  hiddenInput.value = 0;
-  updateProductLinesFromHiddenInputs();
-  calculate();
-}
-
 function renderSelectedProductList() {
-  refreshProductLineOptions();
+  updateTwoPieceOrderNotice();
+  renderSelectedProductSummary();
 }
 
 function getSelectedOrderItemsFromHiddenInputs() {
@@ -561,8 +433,8 @@ function updateTwoPieceOrderNotice() {
   const notice = document.getElementById("twoPieceOrderNotice");
   if (!notice) return;
 
-  const hasTwoPieceSelected = [...document.querySelectorAll(".product-line-select")].some(
-    (select) => getPublicProductById(select.value)?.category === "兩粒裝",
+  const hasTwoPieceSelected = getSelectedOrderItemsFromHiddenInputs().some(
+    (item) => item.category === "兩粒裝",
   );
   notice.style.display = hasTwoPieceSelected ? "" : "none";
 }
@@ -707,7 +579,12 @@ function stepQty(button, step) {
 
 // 雙向同步桌機與手機版數量
 function syncAndCalculate(id, val) {
-  const intVal = parseInt(val) || 0;
+  let intVal = parseInt(val) || 0;
+  const product = getPublicProductById(id);
+  if (product && hasLimitedStock(product) && intVal > product.stock) {
+    intVal = product.stock;
+    alert(`${product.grade} 目前剩 ${product.stock} 盒。`);
+  }
   const pcInput = document.querySelector(`.qty-input[data-id="${id}"]`);
   const mobileInput = document.querySelector(
     `.qty-input-mobile[data-id="${id}"]`,
