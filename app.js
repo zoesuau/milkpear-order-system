@@ -14,7 +14,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "9.1~10兩",
     count: "12顆",
     price: 700,
-    active: true,
+    active: false,
     sortOrder: 1,
   },
   {
@@ -26,7 +26,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "10.1~11兩",
     count: "10顆",
     price: 700,
-    active: true,
+    active: false,
     sortOrder: 2,
   },
   {
@@ -38,7 +38,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "11.1~12兩",
     count: "10顆",
     price: 800,
-    active: true,
+    active: false,
     sortOrder: 3,
   },
   {
@@ -50,7 +50,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "12.1~13兩",
     count: "10顆",
     price: 900,
-    active: true,
+    active: false,
     sortOrder: 4,
   },
   {
@@ -62,7 +62,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "13.1~14兩",
     count: "10顆",
     price: 1000,
-    active: true,
+    active: false,
     sortOrder: 5,
   },
   {
@@ -74,7 +74,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "14.1~15兩",
     count: "10顆",
     price: 1100,
-    active: true,
+    active: false,
     sortOrder: 6,
   },
   {
@@ -122,7 +122,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "23.1~25兩",
     count: "6顆",
     price: 1500,
-    active: true,
+    active: false,
     sortOrder: 10,
   },
   {
@@ -134,7 +134,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "25.1~26兩",
     count: "5顆",
     price: 1500,
-    active: true,
+    active: false,
     sortOrder: 11,
   },
   {
@@ -146,7 +146,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "28.1~30兩",
     count: "2顆",
     price: 600,
-    active: true,
+    active: false,
     sortOrder: 12,
   },
   {
@@ -158,7 +158,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "30.1~32兩",
     count: "2顆",
     price: 700,
-    active: true,
+    active: false,
     sortOrder: 13,
   },
   {
@@ -170,7 +170,7 @@ const PUBLIC_PRODUCT_CATALOG = [
     weight: "32.1兩以上",
     count: "2顆",
     price: 800,
-    active: true,
+    active: false,
     sortOrder: 14,
   },
 ];
@@ -255,106 +255,131 @@ function renderPublicProductCatalog() {
   if (!sectionRoot || !tabsRoot) return;
 
   const products = getActivePublicProducts();
-  const varieties = [...new Set(products.map((product) => product.variety))];
+  tabsRoot.innerHTML = "";
 
-  tabsRoot.innerHTML = varieties
-    .map(
-      (variety, index) =>
-        `<button type="button" class="product-tab ${index === 0 ? "active" : ""}" data-variety="${variety}" onclick="switchProductVariety('${variety}')">${variety}</button>`,
-    )
-    .join("");
-
-  sectionRoot.innerHTML = varieties
-    .map((variety, index) => {
-      const groups = [...new Set(products.filter((product) => product.variety === variety).map((product) => product.category))];
-      const groupHtml = groups
-        .map((category) => renderProductCategory(variety, category))
-        .join("");
-      return `<div class="product-variety-panel" data-variety-panel="${variety}" style="${index === 0 ? "" : "display:none"}">${groupHtml}</div>`;
-    })
-    .join("");
-}
-
-function switchProductVariety(variety) {
-  document.querySelectorAll(".product-tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.variety === variety);
-  });
-  document.querySelectorAll(".product-variety-panel").forEach((panel) => {
-    panel.style.display = panel.dataset.varietyPanel === variety ? "" : "none";
-  });
-}
-
-function renderProductCategory(variety, category) {
-  const products = getActivePublicProducts().filter(
-    (product) => product.variety === variety && product.category === category,
-  );
-  const categoryNote =
-    category === "兩粒裝"
-      ? '<p class="product-category-note">兩粒裝一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。</p>'
-      : "";
-
-  return `
-    <section class="product-category">
+  sectionRoot.innerHTML = `
+    <section class="product-order-panel">
       <div class="product-category-heading">
         <div>
-          <h2>${variety}</h2>
-          <p>${category}</p>
+          <h2>蔗香梨</h2>
+          <p>一般禮盒</p>
         </div>
-        <span>${products.length} 款</span>
+        <span>本期供應</span>
       </div>
-      ${categoryNote}
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>A數 / 等級</th>
-              <th>重量區間</th>
-              <th>顆數</th>
-              <th>售價</th>
-              <th>訂購數量(盒)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${products.map(renderProductTableRow).join("")}
-          </tbody>
-        </table>
+      <div class="product-picker">
+        <label for="productPicker">選擇規格</label>
+        <select id="productPicker" class="product-select">
+          ${products.map(renderProductOption).join("")}
+        </select>
+        <div class="product-picker-actions">
+          ${renderPickerQtyControl()}
+          <button type="button" class="product-add-btn" onclick="addSelectedProductToOrder()">加入訂單</button>
+        </div>
       </div>
-      <div class="product-cards">
-        ${products.map(renderProductCard).join("")}
+      <div class="product-hidden-inputs" aria-hidden="true">
+        ${products.map(renderHiddenQtyInput).join("")}
+      </div>
+      <div class="selected-products">
+        <div class="selected-products-title">已選商品</div>
+        <div id="selectedProductList" class="selected-product-list">
+          <div class="selected-product-empty">尚未加入商品</div>
+        </div>
       </div>
     </section>
   `;
+  renderSelectedProductList();
 }
 
-function renderProductTableRow(product) {
-  return `
-    <tr>
-      <td class="product-grade">${product.grade}</td>
-      <td>${product.weight}</td>
-      <td>${product.count}</td>
-      <td class="product-price">$${product.price.toLocaleString()}</td>
-      <td>${renderQtyControl(product, "qty-input")}</td>
-    </tr>
-  `;
+function renderProductOption(product) {
+  return `<option value="${product.id}">${product.grade}｜${product.weight}｜${product.count}｜$${product.price.toLocaleString()}</option>`;
 }
 
-function renderProductCard(product) {
+function renderPickerQtyControl() {
   return `
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">${product.grade}</span>
-        <span class="card-price">$${product.price.toLocaleString()}</span>
-      </div>
-      <div class="card-body">
-        <span>${product.weight}</span>
-        <span>${product.count}</span>
-      </div>
-      <div class="card-footer">
-        <span>訂購數量：</span>
-        ${renderQtyControl(product, "qty-input-mobile")}
-      </div>
+    <div class="qty-control product-picker-qty">
+      <button type="button" class="qty-btn" onclick="stepQty(this, -1)">-</button>
+      <input type="number" id="productPickerQty" min="1" value="1" />
+      <button type="button" class="qty-btn" onclick="stepQty(this, 1)">+</button>
     </div>
   `;
+}
+
+function renderHiddenQtyInput(product) {
+  return renderQtyControl(product, "qty-input");
+}
+
+function getPublicProductById(id) {
+  return PUBLIC_PRODUCT_CATALOG.find((product) => product.id === id) || null;
+}
+
+function addSelectedProductToOrder() {
+  const picker = document.getElementById("productPicker");
+  const qtyInput = document.getElementById("productPickerQty");
+  const product = getPublicProductById(picker?.value || "");
+  const qty = parseInt(qtyInput?.value || "0", 10);
+  if (!product || !Number.isInteger(qty) || qty <= 0) return;
+
+  const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
+  const currentQty = parseInt(hiddenInput?.value || "0", 10) || 0;
+  if (hiddenInput) hiddenInput.value = currentQty + qty;
+  if (qtyInput) qtyInput.value = 1;
+  calculate();
+}
+
+function adjustSelectedProductQty(id, step) {
+  const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
+  if (!hiddenInput) return;
+  const nextQty = Math.max(0, (parseInt(hiddenInput.value, 10) || 0) + step);
+  hiddenInput.value = nextQty;
+  calculate();
+}
+
+function removeSelectedProduct(id) {
+  const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
+  if (!hiddenInput) return;
+  hiddenInput.value = 0;
+  calculate();
+}
+
+function renderSelectedProductList() {
+  const list = document.getElementById("selectedProductList");
+  if (!list) return;
+
+  const selectedItems = [...document.querySelectorAll(".qty-input")]
+    .map((input) => ({
+      id: input.getAttribute("data-id"),
+      code: input.getAttribute("data-code"),
+      level: input.getAttribute("data-level"),
+      weight: input.getAttribute("data-weight"),
+      count: input.getAttribute("data-count"),
+      price: parseInt(input.getAttribute("data-price"), 10) || 0,
+      qty: parseInt(input.value, 10) || 0,
+    }))
+    .filter((item) => item.qty > 0);
+
+  if (!selectedItems.length) {
+    list.innerHTML = '<div class="selected-product-empty">尚未加入商品</div>';
+    return;
+  }
+
+  list.innerHTML = selectedItems
+    .map(
+      (item) => `
+        <div class="selected-product-item">
+          <div>
+            <strong>${item.level}</strong>
+            <span>${item.weight}｜${item.count}｜$${item.price.toLocaleString()}</span>
+          </div>
+          <div class="selected-product-controls">
+            <button type="button" onclick="adjustSelectedProductQty('${item.id}', -1)" aria-label="減少 ${item.level}">-</button>
+            <span>${item.qty}</span>
+            <button type="button" onclick="adjustSelectedProductQty('${item.id}', 1)" aria-label="增加 ${item.level}">+</button>
+            <button type="button" class="selected-product-remove" onclick="removeSelectedProduct('${item.id}')">移除</button>
+          </div>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderQtyControl(product, inputClass) {
@@ -478,8 +503,10 @@ function stepQty(button, step) {
   const qtyControl = button.closest(".qty-control");
   const input = qtyControl.querySelector("input");
   let currentVal = parseInt(input.value) || 0;
+  const minValue = parseInt(input.getAttribute("min"), 10);
+  const safeMin = Number.isInteger(minValue) ? minValue : 0;
   currentVal += step;
-  if (currentVal < 0) currentVal = 0;
+  if (currentVal < safeMin) currentVal = safeMin;
   input.value = currentVal;
 
   // 觸發變更事件以利同步
@@ -551,6 +578,7 @@ function calculate() {
   if (document.getElementById("grandTotal"))
     document.getElementById("grandTotal").innerText =
       grandTotal.toLocaleString();
+  renderSelectedProductList();
 }
 
 // 寄件人同收件人勾選邏輯
