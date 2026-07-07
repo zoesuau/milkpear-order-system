@@ -1229,7 +1229,7 @@ function renderHistoryList() {
   </span>
 </div>
   </div>
-     
+    
               <div style="padding: 5px 0; font-size: 0.95em; line-height: 1.6;">
                 <div class="history-item-row">
                   <span class="history-item-label" style="color:var(--text-muted);">品項明細：</span><span>${itemDetailsText}</span>
