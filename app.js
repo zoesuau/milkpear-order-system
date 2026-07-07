@@ -288,6 +288,16 @@ async function submitOrder(e) {
     );
     return;
   }
+  const lineIdToken =
+    typeof liff !== "undefined" && typeof liff.getIDToken === "function"
+      ? liff.getIDToken()
+      : "";
+  if (!lineIdToken) {
+    alert(
+      "錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。",
+    );
+    return;
+  }
 
   const total = document.getElementById("grandTotal").innerText;
   const boxes = document.getElementById("totalBoxes").innerText;
@@ -373,6 +383,7 @@ async function submitOrder(e) {
   // 封裝要傳給 GAS 的完美 JSON 結構
   const data = {
     lineUserId: lineUserId,
+    idToken: lineIdToken,
     lineDisplayName: currentUserDisplayName,
     senderName: senderName,
     senderPhone: senderPhone,
@@ -499,7 +510,22 @@ async function submitOrder(e) {
     // setTimeout(() => { liff.closeWindow(); }, 2000);
   } catch (error) {
     console.error(error);
-    alert("訂單送出失敗，請稍後再試");
+    const message = String(error?.message || "").trim();
+    const friendlyMessages = {
+      LINE_ID_TOKEN_MISSING:
+        "LINE 身分驗證缺少 idToken，請確認前台 app.js 已更新，並重新開啟 LINE 訂購頁。",
+      LINE_ID_TOKEN_VERIFY_FAILED:
+        "LINE 身分驗證失敗，請重新開啟 LINE 訂購頁後再試。",
+      LINE_UID_MISMATCH:
+        "LINE 身分資料不一致，請重新開啟 LINE 訂購頁後再試。",
+      PUBLIC_ORDER_REQUIRED_FIELDS: "訂購資料未填完整，請檢查必填欄位。",
+      PUBLIC_ORDER_PHONE_INVALID: "電話格式不正確，請重新確認電話號碼。",
+      ORDER_AMOUNT_MISMATCH: "訂單金額驗證失敗，請重新整理頁面後再送出。",
+      ORDER_SHIPPING_FEE_MISMATCH:
+        "運費驗證失敗，請重新整理頁面後再送出。",
+      ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
+    };
+    alert(friendlyMessages[message] || `訂單送出失敗，請稍後再試\n${message}`);
     if (btn) {
       btn.innerText = originalBtnText;
       btn.disabled = false;
