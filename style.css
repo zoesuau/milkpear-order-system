@@ -387,7 +387,7 @@ input[type="number"] {
   transform: translateY(1px);
 }
 .note-textarea {
-  min-height: 480px;
+  min-height: 120px;
 }
 
 .next-btn {
