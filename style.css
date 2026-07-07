@@ -193,6 +193,7 @@ tr:nth-child(even) {
   border: 1px solid #edeae1;
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
+  margin-bottom: 14px;
   padding: 16px;
 }
 
