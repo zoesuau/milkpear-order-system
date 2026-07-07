@@ -17,7 +17,7 @@
     />
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
-    <link rel="stylesheet" href="style.css?v=20260707-line-1" />
+    <link rel="stylesheet" href="style.css?v=20260707-line-2" />
     <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
@@ -30,9 +30,18 @@
         <!-- 用於儲存 LINE User ID 的隱藏欄位 -->
         <input type="hidden" id="lineUserIdInput" name="lineUserId" value="" />
 
+        <div class="product-banner">
+          <img src="assets/sanheyuan-banner.png" alt="三合院農園梨子商品示意" />
+        </div>
+
         <div class="product-browser">
           <div class="product-tabs" id="productVarietyTabs" aria-label="品種選擇"></div>
           <div id="productCatalogSections"></div>
+        </div>
+
+        <div class="selected-summary" id="selectedProductSummary">
+          <div class="selected-summary-title">已選商品</div>
+          <div class="selected-summary-empty">尚未選擇商品</div>
         </div>
 
         <!-- 說明區塊 -->
@@ -309,6 +318,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260707-line-1"></script>
+    <script src="./app.js?v=20260707-line-2"></script>
   </body>
 </html>
