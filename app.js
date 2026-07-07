@@ -1,25 +1,3 @@
-const DEV_MODE = true;
-async function initApp() {
-  if (DEV_MODE) {
-    currentUserId = "TEST_USER_001";
-    return;
-  }
-
-  await liff.init({
-    liffId: "你的LIFF_ID",
-  });
-
-  if (!liff.isLoggedIn()) {
-    liff.login();
-    return;
-  }
-
-  const profile = await liff.getProfile();
-  currentUserId = profile.userId;
-  currentUserDisplayName = String(
-    profile && profile.displayName ? profile.displayName : "",
-  ).trim();
-}
 let citySelector;
 let orderHistoryList = [];
 let isSyncing = false;
