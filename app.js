@@ -292,7 +292,11 @@ async function submitOrder(e) {
     typeof liff !== "undefined" && typeof liff.getIDToken === "function"
       ? liff.getIDToken()
       : "";
-  if (!lineIdToken) {
+  const lineAccessToken =
+    typeof liff !== "undefined" && typeof liff.getAccessToken === "function"
+      ? liff.getAccessToken()
+      : "";
+  if (!lineIdToken && !lineAccessToken) {
     alert(
       "錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。",
     );
@@ -384,6 +388,7 @@ async function submitOrder(e) {
   const data = {
     lineUserId: lineUserId,
     idToken: lineIdToken,
+    accessToken: lineAccessToken,
     lineDisplayName: currentUserDisplayName,
     senderName: senderName,
     senderPhone: senderPhone,
@@ -516,6 +521,10 @@ async function submitOrder(e) {
         "LINE 身分驗證缺少 idToken，請確認前台 app.js 已更新，並重新開啟 LINE 訂購頁。",
       LINE_ID_TOKEN_VERIFY_FAILED:
         "LINE 身分驗證失敗，請重新開啟 LINE 訂購頁後再試。",
+      LINE_ACCESS_TOKEN_MISSING:
+        "LINE 身分驗證缺少 access token，請重新開啟 LINE 訂購頁後再試。",
+      LINE_ACCESS_TOKEN_VERIFY_FAILED:
+        "LINE access token 驗證失敗，請重新開啟 LINE 訂購頁後再試。",
       LINE_UID_MISMATCH:
         "LINE 身分資料不一致，請重新開啟 LINE 訂購頁後再試。",
       PUBLIC_ORDER_REQUIRED_FIELDS: "訂購資料未填完整，請檢查必填欄位。",
