@@ -17,7 +17,7 @@
     />
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
-    <link rel="stylesheet" href="style.css?v=20260707-picker-1" />
+    <link rel="stylesheet" href="style.css?v=20260707-picker-2" />
     <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
@@ -52,32 +52,8 @@
             1 盒需加收單盒運費 150 元。
           </p>
           <p style="font-size: 0.95em; margin-top: 8px">
-            蔗香梨兩粒裝一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
+            蔗香梨兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
           </p>
-        </div>
-
-        <!-- 費用統計 -->
-        <div class="summary-box">
-          <div class="summary-row">
-            <span>總盒數：</span><span><span id="totalBoxes">0</span> 盒</span>
-          </div>
-          <div class="summary-row">
-            <span>商品小計：</span><span>$ <span id="subTotal">0</span></span>
-          </div>
-          <div class="summary-row">
-            <span>運費：</span><span>$ <span id="shippingFee">0</span></span>
-          </div>
-          <div
-            class="summary-row"
-            id="codFeeRow"
-            style="display: none; color: var(--accent-color); font-weight: 500"
-          >
-            <span>貨到付款手續費：</span
-            ><span>$ <span id="codFee">30</span></span>
-          </div>
-          <div class="summary-row total-row">
-            <span>應付總額：</span><span>$ <span id="grandTotal">0</span></span>
-          </div>
         </div>
 
         <div class="customer-form">
@@ -208,6 +184,31 @@
             ></textarea>
           </div>
 
+        <!-- 費用統計 -->
+        <div class="summary-box">
+          <div class="summary-row">
+            <span>總盒數：</span><span><span id="totalBoxes">0</span> 盒</span>
+          </div>
+          <div class="summary-row">
+            <span>商品小計：</span><span>$ <span id="subTotal">0</span></span>
+          </div>
+          <div class="summary-row">
+            <span>運費：</span><span>$ <span id="shippingFee">0</span></span>
+          </div>
+          <div
+            class="summary-row"
+            id="codFeeRow"
+            style="display: none; color: var(--accent-color); font-weight: 500"
+          >
+            <span>貨到付款手續費：</span
+            ><span>$ <span id="codFee">30</span></span>
+          </div>
+          <div class="summary-row total-row">
+            <span>應付總額：</span><span>$ <span id="grandTotal">0</span></span>
+          </div>
+        </div>
+
+
           <button
             type="button"
             class="submit-btn"
@@ -308,6 +309,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260707-picker-1"></script>
+    <script src="./app.js?v=20260707-picker-2"></script>
   </body>
 </html>
