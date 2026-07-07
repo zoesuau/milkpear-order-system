@@ -258,75 +258,181 @@ function renderPublicProductCatalog() {
   if (!sectionRoot || !tabsRoot) return;
 
   const products = getActivePublicProducts();
-  const groups = groupPublicProducts(products);
   tabsRoot.innerHTML = "";
 
   sectionRoot.innerHTML = `
-    ${groups.map(renderProductOrderPanel).join("")}
-    <div class="product-hidden-inputs" aria-hidden="true">
-      ${products.map(renderHiddenQtyInput).join("")}
-    </div>
-    <div class="selected-products">
-      <div class="selected-products-title">已選商品</div>
-      <div id="selectedProductList" class="selected-product-list">
-        <div class="selected-product-empty">尚未加入商品</div>
-      </div>
-    </div>
-  `;
-  renderSelectedProductList();
-}
-
-function groupPublicProducts(products) {
-  const groupMap = {};
-  products.forEach((product) => {
-    const key = `${product.variety}-${product.category}`;
-    if (!groupMap[key]) {
-      groupMap[key] = {
-        key,
-        variety: product.variety,
-        category: product.category,
-        products: [],
-      };
-    }
-    groupMap[key].products.push(product);
-  });
-  return Object.values(groupMap);
-}
-
-function renderProductOrderPanel(group) {
-  const pickerId = `productPicker-${group.key}`;
-  const qtyId = `productPickerQty-${group.key}`;
-  const note =
-    group.category === "兩粒裝"
-      ? '<p class="product-category-note">兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。</p>'
-      : "";
-
-  return `
     <section class="product-order-panel">
       <div class="product-category-heading">
         <div>
-          <h2>${group.variety}</h2>
-          <p>${getCategoryDisplayName(group.category)}</p>
+          <h2>商品內容</h2>
+          <p>可新增多種規格</p>
         </div>
-        <span>${group.products.some(hasLimitedStock) ? "庫存有限" : "本期供應"}</span>
+        <span>${products.some(hasLimitedStock) ? "部分庫存有限" : "本期供應"}</span>
       </div>
-      ${note}
-      <div class="product-picker">
-        <label for="${pickerId}">選擇規格</label>
-        <select id="${pickerId}" class="product-select">
-          ${group.products.map(renderProductOption).join("")}
-        </select>
-        <div class="product-picker-actions">
-          ${renderPickerQtyControl(qtyId)}
-          <button type="button" class="product-add-btn" onclick="addSelectedProductToOrder('${pickerId}', '${qtyId}')">加入訂單</button>
-        </div>
+      <p class="product-category-note">兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。</p>
+      <div class="product-line-list" id="productLineList"></div>
+      <button type="button" class="product-add-btn product-add-line-btn" onclick="addProductLine()">+ 新增品項</button>
+      <div class="product-stock-hint">
+        商品圖為示意，實際規格與數量以下方選單為準。
+      </div>
+      <div class="product-hidden-inputs" aria-hidden="true">
+        ${products.map(renderHiddenQtyInput).join("")}
       </div>
     </section>
   `;
+  addProductLine();
+}
+
+function addProductLine(selectedId = "") {
+  const list = document.getElementById("productLineList");
+  if (!list) return;
+
+  const products = getActivePublicProducts();
+  const usedIds = getSelectedLineProductIds();
+  const nextProduct =
+    products.find(
+      (product) =>
+        product.id === selectedId ||
+        (!usedIds.includes(product.id) && getRemainingStock(product) !== 0),
+    ) || products[0];
+
+  if (!nextProduct) return;
+
+  list.insertAdjacentHTML(
+    "beforeend",
+    `
+      <div class="product-line-row">
+        <select class="product-line-select" onchange="handleProductLineChange(this)">
+          ${products.map((product) => renderProductOption(product, nextProduct.id)).join("")}
+        </select>
+        <span class="product-line-times">×</span>
+        <input class="product-line-qty" type="number" min="1" value="1" oninput="handleProductLineQtyChange(this)" />
+        <button type="button" class="product-line-delete" aria-label="移除品項" onclick="removeProductLine(this)">移除</button>
+      </div>
+    `,
+  );
+  syncProductLinesToHiddenInputs();
+}
+
+function getSelectedLineProductIds() {
+  return [...document.querySelectorAll(".product-line-select")]
+    .map((select) => select.value)
+    .filter(Boolean);
+}
+
+function handleProductLineChange(select) {
+  const rows = [...document.querySelectorAll(".product-line-row")];
+  const duplicated = rows.some(
+    (row) =>
+      row !== select.closest(".product-line-row") &&
+      row.querySelector(".product-line-select")?.value === select.value,
+  );
+  if (duplicated) {
+    alert("這個規格已經在清單中，請直接調整原本那列的數量。");
+    const fallback = getActivePublicProducts().find(
+      (product) => !getSelectedLineProductIds().includes(product.id),
+    );
+    if (fallback) select.value = fallback.id;
+  }
+  syncProductLinesToHiddenInputs();
+}
+
+function handleProductLineQtyChange(input) {
+  const minValue = parseInt(input.getAttribute("min"), 10) || 1;
+  if ((parseInt(input.value, 10) || 0) < minValue) {
+    input.value = minValue;
+  }
+  syncProductLinesToHiddenInputs();
+}
+
+function removeProductLine(button) {
+  const row = button.closest(".product-line-row");
+  if (!row) return;
+  row.remove();
+  if (!document.querySelector(".product-line-row")) {
+    addProductLine();
+    return;
+  }
+  syncProductLinesToHiddenInputs();
+}
+
+function syncProductLinesToHiddenInputs() {
+  document.querySelectorAll(".qty-input").forEach((input) => {
+    input.value = 0;
+  });
+
+  let hasInvalidStock = false;
+  [...document.querySelectorAll(".product-line-row")].forEach((row) => {
+    const select = row.querySelector(".product-line-select");
+    const qtyInput = row.querySelector(".product-line-qty");
+    const product = getPublicProductById(select?.value || "");
+    const qty = parseInt(qtyInput?.value || "0", 10) || 0;
+    if (!product || qty <= 0) return;
+
+    if (hasLimitedStock(product) && qty > product.stock) {
+      hasInvalidStock = true;
+      qtyInput.value = product.stock;
+    }
+
+    const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
+    if (hiddenInput) hiddenInput.value = hasLimitedStock(product) ? Math.min(qty, product.stock) : qty;
+  });
+
+  if (hasInvalidStock) {
+    alert("部分品項庫存不足，數量已調整為目前可購買盒數。");
+  }
+  calculate();
+}
+
+function refreshProductLineOptions() {
+  document.querySelectorAll(".product-line-select").forEach((select) => {
+    const currentValue = select.value;
+    select.innerHTML = getActivePublicProducts()
+      .map((product) => renderProductOption(product, currentValue))
+      .join("");
+    select.value = currentValue;
+  });
+}
+
+function updateProductLinesFromHiddenInputs() {
+  const list = document.getElementById("productLineList");
+  if (!list) return;
+
+  const selectedProducts = getActivePublicProducts().filter((product) => {
+    const input = document.querySelector(`.qty-input[data-id="${product.id}"]`);
+    return (parseInt(input?.value || "0", 10) || 0) > 0;
+  });
+
+  list.innerHTML = "";
+  if (!selectedProducts.length) {
+    addProductLine();
+    return;
+  }
+
+  selectedProducts.forEach((product) => {
+    addProductLine(product.id);
+    const row = list.lastElementChild;
+    const qtyInput = row?.querySelector(".product-line-qty");
+    const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
+    if (qtyInput) qtyInput.value = parseInt(hiddenInput?.value || "1", 10) || 1;
+  });
 }
 
 function getCategoryDisplayName(category) {
   return category === "兩粒裝" ? "兩顆裝禮盒" : category;
+}
+
+function getProductDisplayLabel(product) {
+  const category = product.category === "兩粒裝" ? "兩顆裝" : product.variety;
+  return `${category}｜${product.grade}｜${product.count}｜$${product.price.toLocaleString()}`;
+}
+
+function renderProductOption(product, selectedId = "") {
+  const stockText = hasLimitedStock(product) ? `｜剩 ${product.stock} 盒` : "";
+  const disabledText =
+    product.stock === 0 && product.id !== selectedId ? " disabled" : "";
+  const selectedText = product.id === selectedId ? " selected" : "";
+  return `<option value="${product.id}"${selectedText}${disabledText}>${getProductDisplayLabel(product)}${stockText}</option>`;
 }
 
 function hasLimitedStock(product) {
@@ -343,22 +449,6 @@ function getRemainingStock(product) {
   return Math.max(0, product.stock - getSelectedProductQty(product.id));
 }
 
-function renderProductOption(product) {
-  const stockText = hasLimitedStock(product) ? `｜剩 ${product.stock} 盒` : "";
-  const disabledText = product.stock === 0 ? " disabled" : "";
-  return `<option value="${product.id}"${disabledText}>${product.grade}｜${product.count}｜$${product.price.toLocaleString()}${stockText}</option>`;
-}
-
-function renderPickerQtyControl(qtyId) {
-  return `
-    <div class="qty-control product-picker-qty">
-      <button type="button" class="qty-btn" onclick="stepQty(this, -1)">-</button>
-      <input type="number" id="${qtyId}" min="1" value="1" />
-      <button type="button" class="qty-btn" onclick="stepQty(this, 1)">+</button>
-    </div>
-  `;
-}
-
 function renderHiddenQtyInput(product) {
   return renderQtyControl(product, "qty-input");
 }
@@ -367,23 +457,8 @@ function getPublicProductById(id) {
   return PUBLIC_PRODUCT_CATALOG.find((product) => product.id === id) || null;
 }
 
-function addSelectedProductToOrder(pickerId, qtyInputId) {
-  const picker = document.getElementById(pickerId);
-  const qtyInput = document.getElementById(qtyInputId);
-  const product = getPublicProductById(picker?.value || "");
-  const qty = parseInt(qtyInput?.value || "0", 10);
-  if (!product || !Number.isInteger(qty) || qty <= 0) return;
-
-  const hiddenInput = document.querySelector(`.qty-input[data-id="${product.id}"]`);
-  const currentQty = parseInt(hiddenInput?.value || "0", 10) || 0;
-  const nextQty = currentQty + qty;
-  if (hasLimitedStock(product) && nextQty > product.stock) {
-    alert(`${product.grade} 目前剩 ${product.stock} 盒，已選 ${currentQty} 盒，無法再加入 ${qty} 盒。`);
-    return;
-  }
-  if (hiddenInput) hiddenInput.value = nextQty;
-  if (qtyInput) qtyInput.value = 1;
-  calculate();
+function addSelectedProductToOrder() {
+  syncProductLinesToHiddenInputs();
 }
 
 function adjustSelectedProductQty(id, step) {
@@ -396,6 +471,7 @@ function adjustSelectedProductQty(id, step) {
     return;
   }
   hiddenInput.value = nextQty;
+  updateProductLinesFromHiddenInputs();
   calculate();
 }
 
@@ -403,49 +479,12 @@ function removeSelectedProduct(id) {
   const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
   if (!hiddenInput) return;
   hiddenInput.value = 0;
+  updateProductLinesFromHiddenInputs();
   calculate();
 }
 
 function renderSelectedProductList() {
-  const list = document.getElementById("selectedProductList");
-  if (!list) return;
-
-  const selectedItems = [...document.querySelectorAll(".qty-input")]
-    .map((input) => ({
-      id: input.getAttribute("data-id"),
-      code: input.getAttribute("data-code"),
-      level: input.getAttribute("data-level"),
-      weight: input.getAttribute("data-weight"),
-      count: input.getAttribute("data-count"),
-      price: parseInt(input.getAttribute("data-price"), 10) || 0,
-      stock: parseOptionalInteger(input.getAttribute("data-stock")),
-      qty: parseInt(input.value, 10) || 0,
-    }))
-    .filter((item) => item.qty > 0);
-
-  if (!selectedItems.length) {
-    list.innerHTML = '<div class="selected-product-empty">尚未加入商品</div>';
-    return;
-  }
-
-  list.innerHTML = selectedItems
-    .map(
-      (item) => `
-        <div class="selected-product-item">
-          <div>
-            <strong>${item.level}</strong>
-            <span>${item.count}｜$${item.price.toLocaleString()}${Number.isInteger(item.stock) ? `｜剩 ${Math.max(0, item.stock - item.qty)} 盒` : ""}</span>
-          </div>
-          <div class="selected-product-controls">
-            <button type="button" onclick="adjustSelectedProductQty('${item.id}', -1)" aria-label="減少 ${item.level}">-</button>
-            <span>${item.qty}</span>
-            <button type="button" onclick="adjustSelectedProductQty('${item.id}', 1)" aria-label="增加 ${item.level}">+</button>
-            <button type="button" class="selected-product-remove" onclick="removeSelectedProduct('${item.id}')">移除</button>
-          </div>
-        </div>
-      `,
-    )
-    .join("");
+  refreshProductLineOptions();
 }
 
 function parseOptionalInteger(value) {
