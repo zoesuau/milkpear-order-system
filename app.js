@@ -176,7 +176,7 @@ const PUBLIC_PRODUCT_CATALOG = [
 ];
 
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
-document.addEventListener("DOMContentLoaded", function () {
+function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
   renderPublicProductCatalog();
   // 1. 初始化 LINE LIFF
@@ -235,7 +235,13 @@ document.addEventListener("DOMContentLoaded", function () {
   if (orderForm) {
     orderForm.addEventListener("submit", submitOrder);
   }
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeOrderPage);
+} else {
+  initializeOrderPage();
+}
 
 function getActivePublicProducts() {
   return PUBLIC_PRODUCT_CATALOG.filter((product) => product.active === true).sort(
