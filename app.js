@@ -4,10 +4,181 @@ let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let shippingBatchesReady = false;
+const PUBLIC_PRODUCT_CATALOG = [
+  {
+    id: "p10A",
+    code: "10A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "10 A",
+    weight: "9.1~10兩",
+    count: "12顆",
+    price: 700,
+    active: true,
+    sortOrder: 1,
+  },
+  {
+    id: "p11A",
+    code: "11A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "11 A",
+    weight: "10.1~11兩",
+    count: "10顆",
+    price: 700,
+    active: true,
+    sortOrder: 2,
+  },
+  {
+    id: "p12A",
+    code: "12A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "12 A",
+    weight: "11.1~12兩",
+    count: "10顆",
+    price: 800,
+    active: true,
+    sortOrder: 3,
+  },
+  {
+    id: "p13A",
+    code: "13A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "13 A",
+    weight: "12.1~13兩",
+    count: "10顆",
+    price: 900,
+    active: true,
+    sortOrder: 4,
+  },
+  {
+    id: "p14A",
+    code: "14A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "14 A",
+    weight: "13.1~14兩",
+    count: "10顆",
+    price: 1000,
+    active: true,
+    sortOrder: 5,
+  },
+  {
+    id: "p15A",
+    code: "15A",
+    variety: "牛奶梨",
+    category: "一般禮盒",
+    grade: "15 A",
+    weight: "14.1~15兩",
+    count: "10顆",
+    price: 1100,
+    active: true,
+    sortOrder: 6,
+  },
+  {
+    id: "p17A",
+    code: "17A",
+    variety: "蔗香梨",
+    category: "一般禮盒",
+    grade: "17 A",
+    weight: "15.1~17兩",
+    count: "8顆",
+    price: 1200,
+    active: true,
+    sortOrder: 7,
+  },
+  {
+    id: "p19A",
+    code: "19A",
+    variety: "蔗香梨",
+    category: "一般禮盒",
+    grade: "19 A",
+    weight: "17.1~19兩",
+    count: "8顆",
+    price: 1300,
+    active: true,
+    sortOrder: 8,
+  },
+  {
+    id: "p21A",
+    code: "21A",
+    variety: "蔗香梨",
+    category: "一般禮盒",
+    grade: "21 A",
+    weight: "19.1~21兩",
+    count: "6顆",
+    price: 1200,
+    active: true,
+    sortOrder: 9,
+  },
+  {
+    id: "p25A",
+    code: "25A",
+    variety: "蔗香梨",
+    category: "一般禮盒",
+    grade: "25 A",
+    weight: "23.1~25兩",
+    count: "6顆",
+    price: 1500,
+    active: true,
+    sortOrder: 10,
+  },
+  {
+    id: "p27A",
+    code: "27A",
+    variety: "蔗香梨",
+    category: "一般禮盒",
+    grade: "27 A",
+    weight: "25.1~26兩",
+    count: "5顆",
+    price: 1500,
+    active: true,
+    sortOrder: 11,
+  },
+  {
+    id: "p30A",
+    code: "30A",
+    variety: "蔗香梨",
+    category: "兩粒裝",
+    grade: "30 A",
+    weight: "28.1~30兩",
+    count: "2顆",
+    price: 600,
+    active: true,
+    sortOrder: 12,
+  },
+  {
+    id: "p32A",
+    code: "32A",
+    variety: "蔗香梨",
+    category: "兩粒裝",
+    grade: "32 A",
+    weight: "30.1~32兩",
+    count: "2顆",
+    price: 700,
+    active: true,
+    sortOrder: 13,
+  },
+  {
+    id: "p34A",
+    code: "34A",
+    variety: "蔗香梨",
+    category: "兩粒裝",
+    grade: "34 A",
+    weight: "32.1兩以上",
+    count: "2顆",
+    price: 800,
+    active: true,
+    sortOrder: 14,
+  },
+];
 
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 document.addEventListener("DOMContentLoaded", function () {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
+  renderPublicProductCatalog();
   // 1. 初始化 LINE LIFF
 
   liff
@@ -65,6 +236,144 @@ document.addEventListener("DOMContentLoaded", function () {
     orderForm.addEventListener("submit", submitOrder);
   }
 });
+
+function getActivePublicProducts() {
+  return PUBLIC_PRODUCT_CATALOG.filter((product) => product.active === true).sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+}
+
+function renderPublicProductCatalog() {
+  const sectionRoot = document.getElementById("productCatalogSections");
+  const tabsRoot = document.getElementById("productVarietyTabs");
+  if (!sectionRoot || !tabsRoot) return;
+
+  const products = getActivePublicProducts();
+  const varieties = [...new Set(products.map((product) => product.variety))];
+
+  tabsRoot.innerHTML = varieties
+    .map(
+      (variety, index) =>
+        `<button type="button" class="product-tab ${index === 0 ? "active" : ""}" data-variety="${variety}" onclick="switchProductVariety('${variety}')">${variety}</button>`,
+    )
+    .join("");
+
+  sectionRoot.innerHTML = varieties
+    .map((variety, index) => {
+      const groups = [...new Set(products.filter((product) => product.variety === variety).map((product) => product.category))];
+      const groupHtml = groups
+        .map((category) => renderProductCategory(variety, category))
+        .join("");
+      return `<div class="product-variety-panel" data-variety-panel="${variety}" style="${index === 0 ? "" : "display:none"}">${groupHtml}</div>`;
+    })
+    .join("");
+}
+
+function switchProductVariety(variety) {
+  document.querySelectorAll(".product-tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.variety === variety);
+  });
+  document.querySelectorAll(".product-variety-panel").forEach((panel) => {
+    panel.style.display = panel.dataset.varietyPanel === variety ? "" : "none";
+  });
+}
+
+function renderProductCategory(variety, category) {
+  const products = getActivePublicProducts().filter(
+    (product) => product.variety === variety && product.category === category,
+  );
+  const categoryNote =
+    category === "兩粒裝"
+      ? '<p class="product-category-note">兩粒裝一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。</p>'
+      : "";
+
+  return `
+    <section class="product-category">
+      <div class="product-category-heading">
+        <div>
+          <h2>${variety}</h2>
+          <p>${category}</p>
+        </div>
+        <span>${products.length} 款</span>
+      </div>
+      ${categoryNote}
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>A數 / 等級</th>
+              <th>重量區間</th>
+              <th>顆數</th>
+              <th>售價</th>
+              <th>訂購數量(盒)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(renderProductTableRow).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="product-cards">
+        ${products.map(renderProductCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderProductTableRow(product) {
+  return `
+    <tr>
+      <td class="product-grade">${product.grade}</td>
+      <td>${product.weight}</td>
+      <td>${product.count}</td>
+      <td class="product-price">$${product.price.toLocaleString()}</td>
+      <td>${renderQtyControl(product, "qty-input")}</td>
+    </tr>
+  `;
+}
+
+function renderProductCard(product) {
+  return `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${product.grade}</span>
+        <span class="card-price">$${product.price.toLocaleString()}</span>
+      </div>
+      <div class="card-body">
+        <span>${product.weight}</span>
+        <span>${product.count}</span>
+      </div>
+      <div class="card-footer">
+        <span>訂購數量：</span>
+        ${renderQtyControl(product, "qty-input-mobile")}
+      </div>
+    </div>
+  `;
+}
+
+function renderQtyControl(product, inputClass) {
+  return `
+    <div class="qty-control">
+      <button type="button" class="qty-btn" onclick="stepQty(this, -1)">-</button>
+      <input
+        type="number"
+        class="${inputClass}"
+        data-id="${product.id}"
+        data-code="${product.code}"
+        data-level="${product.grade}"
+        data-variety="${product.variety}"
+        data-category="${product.category}"
+        data-weight="${product.weight}"
+        data-count="${product.count}"
+        data-price="${product.price}"
+        min="0"
+        value="0"
+        onchange="syncAndCalculate('${product.id}', this.value)"
+      />
+      <button type="button" class="qty-btn" onclick="stepQty(this, 1)">+</button>
+    </div>
+  `;
+}
 
 // 付款方式切換邏輯
 function handlePaymentChange() {
@@ -369,19 +678,31 @@ async function submitOrder(e) {
 
   const fullAddress = `${county}${district}${detailAddr}`;
   const orderItems = [];
+  let twoPieceBoxes = 0;
 
   // 統一抓取桌機版輸入框撈取選購明細即可（因為數值已同步）
   document.querySelectorAll(".qty-input").forEach((input) => {
     const qty = parseInt(input.value) || 0;
     if (qty > 0) {
+      if (input.getAttribute("data-category") === "兩粒裝") {
+        twoPieceBoxes += qty;
+      }
       orderItems.push({
+        code: input.getAttribute("data-code"),
         level: input.getAttribute("data-level"),
+        variety: input.getAttribute("data-variety"),
+        category: input.getAttribute("data-category"),
         weight: input.getAttribute("data-weight"),
         price: input.getAttribute("data-price"),
         qty: qty,
       });
     }
   });
+
+  if (twoPieceBoxes > 0 && twoPieceBoxes < 6) {
+    alert("蔗香梨兩粒裝一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。");
+    return;
+  }
 
   const codFeeSaved = paymentMethod === "貨到付款" ? "30" : "0";
   // 封裝要傳給 GAS 的完美 JSON 結構
