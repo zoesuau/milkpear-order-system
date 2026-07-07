@@ -310,26 +310,30 @@ function renderProductVarietyPanel(group) {
 }
 
 function renderDirectProductRow(product) {
+  const isTwoPiece = product.category === "兩粒裝";
   const categoryBadge =
-    product.category === "兩粒裝"
+    isTwoPiece
       ? '<span class="product-direct-badge">兩顆裝</span>'
       : "";
   const stockText = hasLimitedStock(product)
-    ? `<span class="product-direct-stock">剩 ${product.stock} 盒</span>`
+    ? `<div class="product-direct-meta"><span class="product-direct-stock">剩 ${product.stock} 盒</span></div>`
     : "";
 
   return `
-    <div class="product-direct-row">
+    <div class="product-direct-row${isTwoPiece ? " product-direct-row-featured" : ""}">
       <div class="product-direct-info">
         <div class="product-direct-title">
-          <strong>${product.grade}</strong>
+          <strong>${product.grade} 級別</strong>
           ${categoryBadge}
         </div>
-        <div class="product-direct-meta">
-          ${product.count}｜$${product.price.toLocaleString()} ${stockText}
-        </div>
+        <div class="product-direct-count">${product.count}裝</div>
+        <div class="product-direct-price">$${product.price.toLocaleString()}</div>
+        ${stockText}
       </div>
-      ${renderQtyControl(product, "qty-input product-direct-input")}
+      <div class="product-direct-qty-row">
+        <span>訂購數量：</span>
+        ${renderQtyControl(product, "qty-input product-direct-input")}
+      </div>
     </div>
   `;
 }
