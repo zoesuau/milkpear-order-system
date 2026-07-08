@@ -4,7 +4,9 @@ let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let shippingBatchesReady = false;
-const PUBLIC_PRODUCT_CATALOG = [
+const GAS_ORDERS_API_URL =
+  "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
+const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
     id: "p10A",
     code: "10A",
@@ -177,10 +179,12 @@ const PUBLIC_PRODUCT_CATALOG = [
     sortOrder: 14,
   },
 ];
+let PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
 
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
-function initializeOrderPage() {
+async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
+  await fetchPublicProductCatalog();
   renderPublicProductCatalog();
   // 1. 初始化 LINE LIFF
 
@@ -250,6 +254,58 @@ function getActivePublicProducts() {
   return PUBLIC_PRODUCT_CATALOG.filter((product) => product.active === true).sort(
     (a, b) => a.sortOrder - b.sortOrder,
   );
+}
+
+async function fetchPublicProductCatalog() {
+  try {
+    const requestUrl = new URL(GAS_ORDERS_API_URL);
+    requestUrl.searchParams.set("action", "readPublicProductCatalog");
+    requestUrl.searchParams.set("t", String(Date.now()));
+
+    const response = await fetch(requestUrl.toString(), {
+      method: "GET",
+      cache: "no-store",
+    });
+    const payload = await response.json();
+
+    if (
+      !response.ok ||
+      payload?.ok !== true ||
+      payload?.action !== "readPublicProductCatalog" ||
+      !Array.isArray(payload.products)
+    ) {
+      throw new Error("PRODUCT_CATALOG_UNAVAILABLE");
+    }
+
+    const products = payload.products.map(normalizePublicCatalogProduct);
+    if (!products.length) throw new Error("PRODUCT_CATALOG_EMPTY");
+
+    PUBLIC_PRODUCT_CATALOG = products;
+  } catch (error) {
+    console.warn("商品清單讀取失敗，改用前台備援商品：", error);
+    PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
+  }
+}
+
+function normalizePublicCatalogProduct(product) {
+  const stockValue =
+    product?.stock === null || product?.stock === ""
+      ? null
+      : Number(product?.stock);
+
+  return {
+    id: String(product?.id ?? "").trim(),
+    code: String(product?.code ?? "").trim(),
+    variety: String(product?.variety ?? "").trim(),
+    category: String(product?.category ?? "").trim(),
+    grade: String(product?.grade ?? "").trim(),
+    weight: String(product?.weight ?? "").trim(),
+    count: String(product?.count ?? "").trim(),
+    price: Number(product?.price),
+    stock: Number.isInteger(stockValue) && stockValue >= 0 ? stockValue : null,
+    active: product?.active === true,
+    sortOrder: Number(product?.sortOrder),
+  };
 }
 
 function renderPublicProductCatalog() {
@@ -494,9 +550,7 @@ async function fetchShippingBatches() {
   if (submitButton) submitButton.disabled = true;
 
   try {
-    const gasUrl =
-      "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
-    const requestUrl = new URL(gasUrl);
+    const requestUrl = new URL(GAS_ORDERS_API_URL);
     requestUrl.searchParams.set("action", "readShippingBatches");
     requestUrl.searchParams.set("t", String(Date.now()));
 
@@ -844,8 +898,7 @@ async function submitOrder(e) {
   }
 
   try {
-    const myGasUrl =
-      "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
+    const myGasUrl = GAS_ORDERS_API_URL;
     const noCacheUrl =
       myGasUrl +
       (myGasUrl.includes("?") ? "&" : "?") +
