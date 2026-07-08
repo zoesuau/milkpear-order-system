@@ -98,7 +98,8 @@
       }
 
       .admin-auth-retry,
-      .admin-auth-refresh {
+      .admin-auth-refresh,
+      .admin-auth-close {
         border: 0;
         border-radius: 8px;
         padding: 10px 14px;
@@ -114,8 +115,14 @@
         background: #4f7f63;
       }
 
+      .admin-auth-close {
+        margin-left: 8px;
+        background: #64748b;
+      }
+
       .admin-auth-retry.hidden,
-      .admin-auth-refresh.hidden {
+      .admin-auth-refresh.hidden,
+      .admin-auth-close.hidden {
         display: none;
       }
 
@@ -2291,6 +2298,13 @@
         >
           重新登入 LINE
         </button>
+        <button
+          type="button"
+          class="admin-auth-close hidden"
+          id="adminAuthCloseBtn"
+        >
+          關閉提示
+        </button>
       </div>
     </div>
 
@@ -3129,15 +3143,32 @@
         return CANONICAL_NOTIFICATION_TYPES.has(String(type || "").trim());
       }
 
-      function showAdminAuthOverlay(message, showRetry, showRefresh = false) {
+      function shouldOfferAdminRefreshFromMessage(message) {
+        return /讀取失敗|重新整理|重新讀取|讀取訂單時間較久/.test(
+          String(message || ""),
+        );
+      }
+
+      function showAdminAuthOverlay(
+        message,
+        showRetry,
+        showRefresh = false,
+        showClose = false,
+      ) {
         const overlay = document.getElementById("adminAuthOverlay");
         const messageEl = document.getElementById("adminAuthMessage");
         const retryBtn = document.getElementById("adminAuthRetryBtn");
         const refreshBtn = document.getElementById("adminAuthRefreshBtn");
+        const closeBtn = document.getElementById("adminAuthCloseBtn");
+        const shouldShowRefresh =
+          showRefresh || shouldOfferAdminRefreshFromMessage(message);
+        const shouldShowClose =
+          showClose || shouldShowRefresh || String(message || "").includes("失敗");
 
         if (messageEl) messageEl.innerText = message;
         if (retryBtn) retryBtn.classList.toggle("hidden", !showRetry);
-        if (refreshBtn) refreshBtn.classList.toggle("hidden", !showRefresh);
+        if (refreshBtn) refreshBtn.classList.toggle("hidden", !shouldShowRefresh);
+        if (closeBtn) closeBtn.classList.toggle("hidden", !shouldShowClose);
         if (overlay) overlay.classList.remove("hidden");
       }
 
@@ -3293,7 +3324,12 @@
           clearAdminAuthSession();
           sessionStorage.removeItem(ADMIN_LINE_SESSION_TOKEN_KEY);
           clearAdminAuthQuery();
-          showAdminAuthOverlay("⚠️ LINE 登入驗證失敗，請重新登入 LINE", true);
+          showAdminAuthOverlay(
+            "⚠️ LINE 登入驗證失敗，請確認網路後再試。",
+            true,
+            false,
+            true,
+          );
           return false;
         }
       }
@@ -4443,7 +4479,7 @@
 
       async function refreshAdminOrdersFromOverlay() {
         setAdminRefreshState(true, "正在重新讀取訂單...");
-        showAdminAuthOverlay("正在重新讀取訂單...", false, false);
+        showAdminAuthOverlay("正在重新讀取訂單...", false, true, true);
         const adminOrders = await fetchAdminOrdersFromGas();
         if (!Array.isArray(adminOrders) || !renderAdminOrders(adminOrders)) {
           setAdminRefreshState(false, "重新讀取失敗，請稍後再試。");
@@ -7530,6 +7566,7 @@
       window.addEventListener("DOMContentLoaded", async () => {
         const retryBtn = document.getElementById("adminAuthRetryBtn");
         const refreshBtn = document.getElementById("adminAuthRefreshBtn");
+        const closeBtn = document.getElementById("adminAuthCloseBtn");
         if (retryBtn) {
           retryBtn.addEventListener("click", () => {
             startAdminAuth(true);
@@ -7537,6 +7574,9 @@
         }
         if (refreshBtn) {
           refreshBtn.addEventListener("click", refreshAdminOrdersFromOverlay);
+        }
+        if (closeBtn) {
+          closeBtn.addEventListener("click", hideAdminAuthOverlay);
         }
         document
           .getElementById("adminRefreshOrdersBtn")
