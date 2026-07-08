@@ -308,7 +308,7 @@ function normalizePublicCatalogProduct(product) {
     variety: String(product?.variety ?? "").trim(),
     category: String(product?.category ?? "").trim(),
     grade: String(product?.grade ?? "").trim(),
-    weight: String(product?.weight ?? "").trim(),
+    weight: "",
     count: String(product?.count ?? "").trim(),
     price: Number(product?.price),
     stock: Number.isInteger(stockValue) && stockValue >= 0 ? stockValue : null,
