@@ -251,9 +251,9 @@ if (document.readyState === "loading") {
 }
 
 function getActivePublicProducts() {
-  return PUBLIC_PRODUCT_CATALOG.filter((product) => product.active === true).sort(
-    (a, b) => a.sortOrder - b.sortOrder,
-  );
+  return PUBLIC_PRODUCT_CATALOG.filter(
+    (product) => product.active === true,
+  ).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 async function fetchPublicProductCatalog() {
@@ -367,9 +367,9 @@ function renderProductVarietyPanel(group) {
     isTwoPieceCategory(product.category),
   );
   const hint = hasTwoPiece
-    ? "一般禮盒與兩顆裝可一起選，兩顆裝有最低出貨限制。"
+    ? "兩顆裝禮盒一次需購買 6 盒；未滿 6 盒無法出貨敬請見諒。"
     : hasLimited
-      ? "季末少量供應，售完會即時標示。"
+      ? "因氣候影響，產量減少限量供應，有需要的朋友請提前訂購"
       : "可直接調整盒數，系統會自動計算運費。";
 
   return `
@@ -390,10 +390,9 @@ function renderProductVarietyPanel(group) {
 
 function renderDirectProductRow(product) {
   const isTwoPiece = isTwoPieceCategory(product.category);
-  const categoryBadge =
-    isTwoPiece
-      ? '<span class="product-direct-badge">兩顆裝</span>'
-      : "";
+  const categoryBadge = isTwoPiece
+    ? '<span class="product-direct-badge">兩顆裝</span>'
+    : "";
   const stockText = hasLimitedStock(product)
     ? `<div class="product-direct-meta"><span class="product-direct-stock">剩 ${product.stock} 盒</span></div>`
     : "";
@@ -422,7 +421,9 @@ function getCategoryDisplayName(category) {
 }
 
 function getProductDisplayLabel(product) {
-  const category = isTwoPieceCategory(product.category) ? "兩顆裝" : product.variety;
+  const category = isTwoPieceCategory(product.category)
+    ? "兩顆裝"
+    : product.variety;
   return `${category}｜${product.grade}｜${product.count}｜$${product.price.toLocaleString()}`;
 }
 
@@ -851,9 +852,7 @@ async function submitOrder(e) {
       ? liff.getAccessToken()
       : "";
   if (!lineIdToken && !lineAccessToken) {
-    alert(
-      "錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。",
-    );
+    alert("錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。");
     return;
   }
 
@@ -1090,13 +1089,11 @@ async function submitOrder(e) {
         "LINE 身分驗證缺少 access token，請重新開啟 LINE 訂購頁後再試。",
       LINE_ACCESS_TOKEN_VERIFY_FAILED:
         "LINE access token 驗證失敗，請重新開啟 LINE 訂購頁後再試。",
-      LINE_UID_MISMATCH:
-        "LINE 身分資料不一致，請重新開啟 LINE 訂購頁後再試。",
+      LINE_UID_MISMATCH: "LINE 身分資料不一致，請重新開啟 LINE 訂購頁後再試。",
       PUBLIC_ORDER_REQUIRED_FIELDS: "訂購資料未填完整，請檢查必填欄位。",
       PUBLIC_ORDER_PHONE_INVALID: "電話格式不正確，請重新確認電話號碼。",
       ORDER_AMOUNT_MISMATCH: "訂單金額驗證失敗，請重新整理頁面後再送出。",
-      ORDER_SHIPPING_FEE_MISMATCH:
-        "運費驗證失敗，請重新整理頁面後再送出。",
+      ORDER_SHIPPING_FEE_MISMATCH: "運費驗證失敗，請重新整理頁面後再送出。",
       ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
       PRODUCT_CATALOG_NOT_FOUND:
         "商品資料暫時無法讀取，請稍後再試，或聯絡小幫手確認後台設定。",
