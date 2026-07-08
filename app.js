@@ -528,6 +528,67 @@ function parseOptionalInteger(value) {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+function getSelectedQuantitiesByCode() {
+  const selected = {};
+  document.querySelectorAll(".qty-input").forEach((input) => {
+    const code = String(input.getAttribute("data-code") || "").trim();
+    const qty = parseInt(input.value, 10) || 0;
+    if (code && qty > 0) selected[code] = qty;
+  });
+  return selected;
+}
+
+function applySelectedQuantitiesByCode(selected) {
+  Object.entries(selected).forEach(([code, qty]) => {
+    const input = document.querySelector(`.qty-input[data-code="${code}"]`);
+    if (!input) return;
+    syncAndCalculate(input.getAttribute("data-id"), qty);
+  });
+}
+
+function parseStockInsufficientError(message) {
+  const prefix = "PRODUCT_STOCK_INSUFFICIENT::";
+  if (!String(message || "").startsWith(prefix)) return null;
+
+  try {
+    const payload = JSON.parse(String(message).slice(prefix.length));
+    return Array.isArray(payload?.items) ? payload.items : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function handleStockInsufficientSubmitError(message) {
+  const shortageItems = parseStockInsufficientError(message);
+  if (!shortageItems) return false;
+
+  const selected = getSelectedQuantitiesByCode();
+  shortageItems.forEach((item) => {
+    const code = String(item?.code || "").trim();
+    const available = parseOptionalInteger(item?.available);
+    if (code && Number.isInteger(available)) {
+      selected[code] = Math.max(0, available);
+    }
+  });
+
+  await fetchPublicProductCatalog();
+  renderPublicProductCatalog();
+  applySelectedQuantitiesByCode(selected);
+
+  const lines = shortageItems.map((item) => {
+    const grade = String(item?.grade || item?.code || "商品").trim();
+    const requested = parseOptionalInteger(item?.requested);
+    const available = parseOptionalInteger(item?.available);
+    if (available === 0) {
+      return `${grade} 已售完，請刪除這項商品。`;
+    }
+    return `${grade} 目前只剩 ${available} 盒，請把數量改小後再送出。`;
+  });
+
+  alert(["庫存不足，訂單尚未送出。", ...lines].join("\n"));
+  return true;
+}
+
 function renderQtyControl(product, inputClass) {
   return `
     <div class="qty-control">
@@ -1038,11 +1099,16 @@ async function submitOrder(e) {
         "運費驗證失敗，請重新整理頁面後再送出。",
       ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
     };
-    alert(friendlyMessages[message] || `訂單送出失敗，請稍後再試\n${message}`);
     if (btn) {
       btn.innerText = originalBtnText;
       btn.disabled = false;
     }
+
+    if (await handleStockInsufficientSubmitError(message)) {
+      return;
+    }
+
+    alert(friendlyMessages[message] || `訂單送出失敗，請稍後再試\n${message}`);
   }
 }
 
