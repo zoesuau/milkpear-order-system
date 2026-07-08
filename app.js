@@ -281,9 +281,18 @@ async function fetchPublicProductCatalog() {
     if (!products.length) throw new Error("PRODUCT_CATALOG_EMPTY");
 
     PUBLIC_PRODUCT_CATALOG = products;
+    applyPublicSiteSettings(payload.siteSettings);
   } catch (error) {
     console.warn("商品清單讀取失敗，改用前台備援商品：", error);
     PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
+  }
+}
+
+function applyPublicSiteSettings(siteSettings) {
+  const bannerUrl = String(siteSettings?.bannerImageUrl ?? "").trim();
+  const bannerImg = document.querySelector(".product-banner img");
+  if (bannerImg && bannerUrl) {
+    bannerImg.src = bannerUrl;
   }
 }
 
