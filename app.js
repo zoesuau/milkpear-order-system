@@ -145,7 +145,7 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
     id: "p30A",
     code: "30A",
     variety: "蔗香梨",
-    category: "兩粒裝",
+    category: "兩粒禮盒",
     grade: "30 A",
     weight: "28.1~30兩",
     count: "2顆",
@@ -157,7 +157,7 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
     id: "p32A",
     code: "32A",
     variety: "蔗香梨",
-    category: "兩粒裝",
+    category: "兩粒禮盒",
     grade: "32 A",
     weight: "30.1~32兩",
     count: "2顆",
@@ -170,7 +170,7 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
     id: "p34A",
     code: "34A",
     variety: "蔗香梨",
-    category: "兩粒裝",
+    category: "兩粒禮盒",
     grade: "34 A",
     weight: "32.1兩以上",
     count: "2顆",
@@ -306,7 +306,7 @@ function normalizePublicCatalogProduct(product) {
     id: String(product?.id ?? "").trim(),
     code: String(product?.code ?? "").trim(),
     variety: String(product?.variety ?? "").trim(),
-    category: String(product?.category ?? "").trim(),
+    category: normalizePublicProductCategory(product?.category),
     grade: String(product?.grade ?? "").trim(),
     weight: "",
     count: String(product?.count ?? "").trim(),
@@ -315,6 +315,18 @@ function normalizePublicCatalogProduct(product) {
     active: product?.active === true,
     sortOrder: Number(product?.sortOrder),
   };
+}
+
+function normalizePublicProductCategory(category) {
+  const text = String(category ?? "").trim();
+  if (text === "兩粒裝" || text === "兩顆裝" || text === "兩顆禮盒") {
+    return "兩粒禮盒";
+  }
+  return text || "一般禮盒";
+}
+
+function isTwoPieceCategory(category) {
+  return normalizePublicProductCategory(category) === "兩粒禮盒";
 }
 
 function renderPublicProductCatalog() {
@@ -351,7 +363,9 @@ function groupProductsByVariety(products) {
 
 function renderProductVarietyPanel(group) {
   const hasLimited = group.products.some(hasLimitedStock);
-  const hasTwoPiece = group.products.some((product) => product.category === "兩粒裝");
+  const hasTwoPiece = group.products.some((product) =>
+    isTwoPieceCategory(product.category),
+  );
   const hint = hasTwoPiece
     ? "一般禮盒與兩顆裝可一起選，兩顆裝有最低出貨限制。"
     : hasLimited
@@ -375,7 +389,7 @@ function renderProductVarietyPanel(group) {
 }
 
 function renderDirectProductRow(product) {
-  const isTwoPiece = product.category === "兩粒裝";
+  const isTwoPiece = isTwoPieceCategory(product.category);
   const categoryBadge =
     isTwoPiece
       ? '<span class="product-direct-badge">兩顆裝</span>'
@@ -404,11 +418,11 @@ function renderDirectProductRow(product) {
 }
 
 function getCategoryDisplayName(category) {
-  return category === "兩粒裝" ? "兩顆裝禮盒" : category;
+  return isTwoPieceCategory(category) ? "兩顆裝禮盒" : category;
 }
 
 function getProductDisplayLabel(product) {
-  const category = product.category === "兩粒裝" ? "兩顆裝" : product.variety;
+  const category = isTwoPieceCategory(product.category) ? "兩顆裝" : product.variety;
   return `${category}｜${product.grade}｜${product.count}｜$${product.price.toLocaleString()}`;
 }
 
@@ -503,7 +517,7 @@ function updateTwoPieceOrderNotice() {
   if (!notice) return;
 
   const hasTwoPieceSelected = getSelectedOrderItemsFromHiddenInputs().some(
-    (item) => item.category === "兩粒裝",
+    (item) => isTwoPieceCategory(item.category),
   );
   notice.style.display = hasTwoPieceSelected ? "" : "none";
 }
@@ -854,7 +868,7 @@ async function submitOrder(e) {
   document.querySelectorAll(".qty-input").forEach((input) => {
     const qty = parseInt(input.value) || 0;
     if (qty > 0) {
-      if (input.getAttribute("data-category") === "兩粒裝") {
+      if (isTwoPieceCategory(input.getAttribute("data-category"))) {
         twoPieceBoxes += qty;
       }
       orderItems.push({
