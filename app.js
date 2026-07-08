@@ -1098,6 +1098,8 @@ async function submitOrder(e) {
       ORDER_SHIPPING_FEE_MISMATCH:
         "運費驗證失敗，請重新整理頁面後再送出。",
       ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
+      PRODUCT_CATALOG_NOT_FOUND:
+        "商品資料暫時無法讀取，請稍後再試，或聯絡小幫手確認後台設定。",
     };
     if (btn) {
       btn.innerText = originalBtnText;
