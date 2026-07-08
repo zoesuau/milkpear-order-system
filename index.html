@@ -2286,7 +2286,7 @@
         </div>
         <button
           type="button"
-          class="admin-auth-refresh hidden"
+          class="admin-auth-refresh"
           id="adminAuthRefreshBtn"
         >
           重新讀取訂單
@@ -2300,7 +2300,7 @@
         </button>
         <button
           type="button"
-          class="admin-auth-close hidden"
+          class="admin-auth-close"
           id="adminAuthCloseBtn"
         >
           關閉提示
@@ -2388,39 +2388,6 @@
           >
             本週
           </button>
-          <script>
-            (() => {
-              const button = document.getElementById("currentWeekFilterButton");
-              if (!button) return;
-
-              const parts = new Intl.DateTimeFormat("en-US", {
-                timeZone: "Asia/Taipei",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-              }).formatToParts(new Date());
-
-              const getPart = (type) =>
-                parts.find((part) => part.type === type)?.value;
-
-              const year = Number(getPart("year"));
-              const month = Number(getPart("month"));
-              const day = Number(getPart("day"));
-              if (!year || !month || !day) return;
-
-              const monday = new Date(Date.UTC(year, month - 1, day));
-              const weekday = monday.getUTCDay() || 7;
-              monday.setUTCDate(monday.getUTCDate() - weekday + 1);
-
-              const sunday = new Date(monday);
-              sunday.setUTCDate(sunday.getUTCDate() + 6);
-
-              const formatMonthDay = (date) =>
-                `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
-
-              button.textContent = `本週（${formatMonthDay(monday)}～${formatMonthDay(sunday)}）`;
-            })();
-          </script>
           <button onclick="filterByDateRange('本月', this)">本月</button>
           <button onclick="filterByDateRange('自訂', this)">自訂</button>
         </div>
@@ -3067,6 +3034,7 @@
       const ADMIN_LINE_NONCE_KEY = "milkpear_admin_line_nonce";
       const ADMIN_LINE_CODE_VERIFIER_KEY = "milkpear_admin_line_code_verifier";
       const ADMIN_LINE_SESSION_TOKEN_KEY = "milkpear_admin_session_token";
+      const ADMIN_AUTH_TIMEOUT_MS = 15000;
       const ADMIN_READ_ORDERS_TIMEOUT_MS = 15000;
       const ADMIN_INITIAL_LOAD_SLOW_MS = 12000;
 
@@ -3163,11 +3131,14 @@
         const shouldShowRefresh =
           showRefresh || shouldOfferAdminRefreshFromMessage(message);
         const shouldShowClose =
-          showClose || shouldShowRefresh || String(message || "").includes("失敗");
+          showClose ||
+          shouldShowRefresh ||
+          String(message || "").includes("失敗");
 
         if (messageEl) messageEl.innerText = message;
         if (retryBtn) retryBtn.classList.toggle("hidden", !showRetry);
-        if (refreshBtn) refreshBtn.classList.toggle("hidden", !shouldShowRefresh);
+        if (refreshBtn)
+          refreshBtn.classList.toggle("hidden", !shouldShowRefresh);
         if (closeBtn) closeBtn.classList.toggle("hidden", !shouldShowClose);
         if (overlay) overlay.classList.remove("hidden");
       }
@@ -3281,19 +3252,23 @@
         }
 
         try {
-          const response = await fetch(GAS_ORDERS_API_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "text/plain;charset=utf-8",
+          const response = await fetchWithTimeout(
+            GAS_ORDERS_API_URL,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+              },
+              body: JSON.stringify({
+                action: "adminAuth",
+                code,
+                redirectUri: ADMIN_AUTH_REDIRECT_URI,
+                codeVerifier,
+                nonce,
+              }),
             },
-            body: JSON.stringify({
-              action: "adminAuth",
-              code,
-              redirectUri: ADMIN_AUTH_REDIRECT_URI,
-              codeVerifier,
-              nonce,
-            }),
-          });
+            ADMIN_AUTH_TIMEOUT_MS,
+          );
 
           const payload = await response.json();
 
@@ -4500,6 +4475,8 @@
         updateAdminRefreshMeta();
         hideAdminAuthOverlay();
       }
+      window.refreshAdminOrdersFromOverlay = refreshAdminOrdersFromOverlay;
+      window.hideAdminAuthOverlay = hideAdminAuthOverlay;
 
       async function fetchAdminProductCatalogFromGas() {
         const baseUrl = String(GAS_ORDERS_API_URL || "").trim();
@@ -6526,6 +6503,38 @@
         return `${values.year}-${values.month}-${values.day}`;
       }
 
+      function updateCurrentWeekFilterButtonLabel() {
+        const button = document.getElementById("currentWeekFilterButton");
+        if (!button) return;
+
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Taipei",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(new Date());
+        const values = {};
+        parts.forEach((part) => {
+          if (part.type !== "literal") values[part.type] = part.value;
+        });
+
+        const year = Number(values.year);
+        const month = Number(values.month);
+        const day = Number(values.day);
+        if (!year || !month || !day) return;
+
+        const monday = new Date(Date.UTC(year, month - 1, day));
+        const weekday = monday.getUTCDay() || 7;
+        monday.setUTCDate(monday.getUTCDate() - weekday + 1);
+
+        const sunday = new Date(monday);
+        sunday.setUTCDate(sunday.getUTCDate() + 6);
+
+        const formatMonthDay = (date) =>
+          `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+        button.textContent = `本週（${formatMonthDay(monday)}～${formatMonthDay(sunday)}）`;
+      }
+
       function buildAdminMarkOrderShippedHtml(options = {}) {
         const taipeiToday = getTaipeiToday();
         const canBundleChangeNotice = options.canBundleChangeNotice === true;
@@ -7583,6 +7592,7 @@
           ?.addEventListener("click", refreshAdminOrdersManually);
 
         bindAdminWorkflowEvents();
+        updateCurrentWeekFilterButtonLabel();
         calculateCardAmount("orderCard1");
         updateStatsCounters();
         handleBatchCheckChange();
