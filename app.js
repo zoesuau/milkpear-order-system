@@ -1056,7 +1056,13 @@ async function submitOrder(e) {
       if (codAlert) codAlert.style.display = "none";
     }
 
-    orderHistoryList.push(data);
+    const {
+      lineUserId: _lineUserId,
+      idToken: _idToken,
+      accessToken: _accessToken,
+      ...historyOrder
+    } = data;
+    orderHistoryList.push(historyOrder);
     renderHistoryList();
 
     if (document.getElementById("successBlock")) {
@@ -1141,6 +1147,15 @@ function resetFormForNext() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // 歷史多單列表渲染（連單功能）
 function renderHistoryList() {
   const container = document.getElementById("historyContainer");
@@ -1148,16 +1163,17 @@ function renderHistoryList() {
   container.innerHTML = "";
 
   orderHistoryList.forEach((order, index) => {
-    const itemDetailsArray = order.items.map((item) => {
+    const itemDetailsArray = (order.items || []).map((item) => {
       const itemSubtotal = parseInt(item.price) * parseInt(item.qty);
-      return `${item.level} (單價$${parseInt(item.price).toLocaleString()} × ${item.qty}盒 = $${itemSubtotal.toLocaleString()})`;
+      return `${escapeHtml(item.level)} (單價$${parseInt(item.price).toLocaleString()} × ${escapeHtml(item.qty)}盒 = $${itemSubtotal.toLocaleString()})`;
     });
     const itemDetailsText = itemDetailsArray.join("<br>     ");
 
-    const isFreeShipping = parseInt(order.shippingFee.replace(/,/g, "")) === 0;
+    const shippingFee = String(order.shippingFee ?? "");
+    const isFreeShipping = parseInt(shippingFee.replace(/,/g, "")) === 0;
     const shippingText = isFreeShipping
       ? `<span style="color: var(--primary-color); font-weight: bold;">免運費 (0元)</span>`
-      : `$ ${order.shippingFee} 元`;
+      : `$ ${escapeHtml(shippingFee)} 元`;
 
     const codFeeText =
       order.codFee === "30"
@@ -1165,7 +1181,7 @@ function renderHistoryList() {
         : "";
 
     const noteHtml = order.note
-      ? `<div class="history-item-row"><span class="history-item-label">備註說明：</span><span style="color: var(--accent-color); font-weight: bold;">${order.note}</span></div>`
+      ? `<div class="history-item-row"><span class="history-item-label">備註說明：</span><span style="color: var(--accent-color); font-weight: bold;">${escapeHtml(order.note)}</span></div>`
       : "";
 
     const cardHtml = `
@@ -1197,7 +1213,7 @@ function renderHistoryList() {
       font-weight:bold;
       font-size:1.8rem;
     ">
-      $ ${order.total}
+      $ ${escapeHtml(order.total)}
     </span>
   </div>
 
@@ -1213,7 +1229,7 @@ function renderHistoryList() {
   ">
     收件人｜
   </span>
-  <span>${order.name}</span>
+  <span>${escapeHtml(order.name)}</span>
 </div>
 
 <div style="
@@ -1228,7 +1244,7 @@ function renderHistoryList() {
   ">
     聯絡電話｜
   </span>
-  <span>${order.phone}</span>
+  <span>${escapeHtml(order.phone)}</span>
 </div>
 
 <div style="
@@ -1246,7 +1262,7 @@ function renderHistoryList() {
     flex:1;
     word-break:break-word;
   ">
-    ${order.address}
+    ${escapeHtml(order.address)}
   </span>
 </div>
   </div>
@@ -1262,15 +1278,15 @@ function renderHistoryList() {
            
                 ${
                   order.requestedShippingBatchLabel
-                    ? `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">希望寄出批次：</span><span style="font-weight:bold;">${order.requestedShippingBatchLabel}</span></div>`
-                    : `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">預訂出貨日：</span><span style="font-weight:bold;">${order.shippingDate || ""}</span></div>`
+                    ? `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">希望寄出批次：</span><span style="font-weight:bold;">${escapeHtml(order.requestedShippingBatchLabel)}</span></div>`
+                    : `<div class="history-item-row"><span class="history-item-label" style="color:var(--text-muted);">預訂出貨日：</span><span style="font-weight:bold;">${escapeHtml(order.shippingDate || "")}</span></div>`
                 }
                 <div class="history-item-row" style="border-top: 1px solid #F5F2EC; margin-top: 6px; padding-top: 6px;">
-                  <span class="history-item-label" style="color:var(--text-muted);">寄件人姓名：</span><span>${order.senderName}</span>
+                  <span class="history-item-label" style="color:var(--text-muted);">寄件人姓名：</span><span>${escapeHtml(order.senderName)}</span>
                 </div>
                 <div class="history-item-row" style="background-color: var(--secondary-color); padding: 8px 12px; border-radius: 8px; margin-top: 10px;">
                   <span class="history-item-label" style="color: var(--primary-color); font-weight: bold;">付款狀態：</span>
-                  <span style="color: var(--primary-color); font-weight: bold;">${order.paymentMethod}（後台處理中）</span>
+                  <span style="color: var(--primary-color); font-weight: bold;">${escapeHtml(order.paymentMethod)}（後台處理中）</span>
                 </div>
                 ${noteHtml}
               </div>
