@@ -207,7 +207,6 @@ async function initializeOrderPage() {
             // 同步填入隱藏欄位
             const uidInput = document.getElementById("lineUserIdInput");
             if (uidInput) uidInput.value = currentUserId;
-            console.log("成功撈到 UID 並填入欄位:", currentUserId);
           })
           .catch((err) => {
             console.error("撈取 LINE Profile 失敗:", err);
