@@ -8,7 +8,7 @@
   --accent-color: #e68a4b; /* 暖陽橘 */
   --accent-light: #fffaf4; /* 輕盈淺橘 */
   --text-color: #4a463f; /* 深茶色字體 */
-  --text-muted: #8c867a; /* 淺茶色提示字 */
+  --text-muted: #8c867a; /* 淺茶色提示字 */ 
   --shadow-sm: 0 4px 16px rgba(140, 134, 122, 0.06);
   --shadow-md: 0 8px 24px rgba(140, 134, 122, 0.12);
 }
