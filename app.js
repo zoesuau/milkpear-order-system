@@ -381,7 +381,7 @@ function renderProductVarietyPanel(group) {
     <section class="product-order-panel product-variety-panel">
       <div class="product-category-heading">
         <div>
-          <h2>${group.variety}</h2>
+          <h2>${escapeHtml(group.variety)}</h2>
         </div>
         <span>${hasLimited ? "部分庫存有限" : "本期供應"}</span>
       </div>
@@ -401,16 +401,19 @@ function renderDirectProductRow(product) {
   const stockText = hasLimitedStock(product)
     ? `<div class="product-direct-meta"><span class="product-direct-stock">剩 ${product.stock} 盒</span></div>`
     : "";
+  const priceText = Number.isFinite(product.price)
+    ? product.price.toLocaleString()
+    : "0";
 
   return `
     <div class="product-direct-row${isTwoPiece ? " product-direct-row-featured" : ""}">
       <div class="product-direct-info">
         <div class="product-direct-title">
-          <strong>${product.grade} 級別</strong>
+          <strong>${escapeHtml(product.grade)} 級別</strong>
           ${categoryBadge}
         </div>
-        <div class="product-direct-count">${product.count}裝</div>
-        <div class="product-direct-price">$${product.price.toLocaleString()}</div>
+        <div class="product-direct-count">${escapeHtml(product.count)}裝</div>
+        <div class="product-direct-price">$${priceText}</div>
         ${stockText}
       </div>
       <div class="product-direct-qty-row">
@@ -429,7 +432,10 @@ function getProductDisplayLabel(product) {
   const category = isTwoPieceCategory(product.category)
     ? "兩顆裝"
     : product.variety;
-  return `${category}｜${product.grade}｜${product.count}｜$${product.price.toLocaleString()}`;
+  const priceText = Number.isFinite(product.price)
+    ? product.price.toLocaleString()
+    : "0";
+  return `${category}｜${product.grade}｜${product.count}｜$${priceText}`;
 }
 
 function renderProductOption(product, selectedId = "") {
@@ -437,7 +443,7 @@ function renderProductOption(product, selectedId = "") {
   const disabledText =
     product.stock === 0 && product.id !== selectedId ? " disabled" : "";
   const selectedText = product.id === selectedId ? " selected" : "";
-  return `<option value="${product.id}"${selectedText}${disabledText}>${getProductDisplayLabel(product)}${stockText}</option>`;
+  return `<option value="${escapeHtmlAttribute(product.id)}"${selectedText}${disabledText}>${escapeHtml(getProductDisplayLabel(product))}${stockText}</option>`;
 }
 
 function hasLimitedStock(product) {
@@ -445,7 +451,7 @@ function hasLimitedStock(product) {
 }
 
 function getSelectedProductQty(id) {
-  const hiddenInput = document.querySelector(`.qty-input[data-id="${id}"]`);
+  const hiddenInput = findQtyInputByDataValue("id", id, ".qty-input");
   return parseInt(hiddenInput?.value || "0", 10) || 0;
 }
 
@@ -507,7 +513,7 @@ function renderSelectedProductSummary() {
             : "";
           return `
             <div class="selected-summary-item">
-              <span>${label}</span>
+              <span>${escapeHtml(label)}</span>
               <strong>× ${item.qty}</strong>
               ${stockText}
             </div>
@@ -546,7 +552,7 @@ function getSelectedQuantitiesByCode() {
 
 function applySelectedQuantitiesByCode(selected) {
   Object.entries(selected).forEach(([code, qty]) => {
-    const input = document.querySelector(`.qty-input[data-code="${code}"]`);
+    const input = findQtyInputByDataValue("code", code, ".qty-input");
     if (!input) return;
     syncAndCalculate(input.getAttribute("data-id"), qty);
   });
@@ -601,19 +607,19 @@ function renderQtyControl(product, inputClass) {
       <button type="button" class="qty-btn" onclick="stepQty(this, -1)">-</button>
       <input
         type="number"
-        class="${inputClass}"
-        data-id="${product.id}"
-        data-code="${product.code}"
-        data-level="${product.grade}"
-        data-variety="${product.variety}"
-        data-category="${product.category}"
-        data-weight="${product.weight}"
-        data-count="${product.count}"
-        data-price="${product.price}"
+        class="${escapeHtmlAttribute(inputClass)}"
+        data-id="${escapeHtmlAttribute(product.id)}"
+        data-code="${escapeHtmlAttribute(product.code)}"
+        data-level="${escapeHtmlAttribute(product.grade)}"
+        data-variety="${escapeHtmlAttribute(product.variety)}"
+        data-category="${escapeHtmlAttribute(product.category)}"
+        data-weight="${escapeHtmlAttribute(product.weight)}"
+        data-count="${escapeHtmlAttribute(product.count)}"
+        data-price="${escapeHtmlAttribute(product.price)}"
         data-stock="${hasLimitedStock(product) ? product.stock : ""}"
         min="0"
         value="0"
-        onchange="syncAndCalculate('${product.id}', this.value)"
+        onchange="syncAndCalculate(this.dataset.id, this.value)"
       />
       <button type="button" class="qty-btn" onclick="stepQty(this, 1)">+</button>
     </div>
@@ -764,10 +770,8 @@ function syncAndCalculate(id, val) {
     intVal = product.stock;
     alert(`${product.grade} 目前剩 ${product.stock} 盒。`);
   }
-  const pcInput = document.querySelector(`.qty-input[data-id="${id}"]`);
-  const mobileInput = document.querySelector(
-    `.qty-input-mobile[data-id="${id}"]`,
-  );
+  const pcInput = findQtyInputByDataValue("id", id, ".qty-input");
+  const mobileInput = findQtyInputByDataValue("id", id, ".qty-input-mobile");
 
   if (pcInput && parseInt(pcInput.value) !== intVal) pcInput.value = intVal;
   if (mobileInput && parseInt(mobileInput.value) !== intVal)
@@ -1188,6 +1192,17 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function escapeHtmlAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+function findQtyInputByDataValue(dataKey, value, selector) {
+  const expected = String(value ?? "");
+  return [...document.querySelectorAll(selector)].find(
+    (input) => String(input.dataset?.[dataKey] ?? "") === expected,
+  );
 }
 
 // 歷史多單列表渲染（連單功能）
