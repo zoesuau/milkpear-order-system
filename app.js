@@ -232,9 +232,11 @@ async function initializeOrderPage() {
   fetchShippingBatches();
 
   const addressDetailInput = document.getElementById("address_detail");
-  if (addressDetailInput) addressDetailInput.addEventListener("input", calculate);
+  if (addressDetailInput)
+    addressDetailInput.addEventListener("input", calculate);
   const addressSelectorWrap = document.getElementById("twzipcode_wrap");
-  if (addressSelectorWrap) addressSelectorWrap.addEventListener("change", calculate);
+  if (addressSelectorWrap)
+    addressSelectorWrap.addEventListener("change", calculate);
 
   // 4. 監聽付款方式變更與表單送出事件
   const paymentMethodSelect = document.getElementById("paymentMethod");
