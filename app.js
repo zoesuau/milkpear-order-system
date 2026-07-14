@@ -4,8 +4,6 @@ let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let shippingBatchesReady = false;
-const LIFF_DEBUG_STORAGE_KEY = "milkpear_liff_debug";
-const LIFF_DEBUG_STARTED_AT = performance.now();
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
@@ -184,91 +182,22 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
 ];
 let PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
 
-function isLiffDebugEnabled() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("debugLiff") === "1") {
-    localStorage.setItem(LIFF_DEBUG_STORAGE_KEY, "1");
-    return true;
-  }
-  if (params.get("debugLiff") === "0") {
-    localStorage.removeItem(LIFF_DEBUG_STORAGE_KEY);
-    return false;
-  }
-  return localStorage.getItem(LIFF_DEBUG_STORAGE_KEY) === "1";
-}
-
-function maskDebugValue(value) {
-  const text = String(value || "");
-  if (text.length <= 8) return text ? "[set]" : "";
-  return `${text.slice(0, 4)}...${text.slice(-4)}`;
-}
-
-function getLiffDebugPanel() {
-  if (!isLiffDebugEnabled()) return null;
-
-  let panel = document.getElementById("liffDebugPanel");
-  if (panel) return panel;
-
-  panel = document.createElement("pre");
-  panel.id = "liffDebugPanel";
-  panel.style.cssText = [
-    "position:fixed",
-    "left:8px",
-    "right:8px",
-    "bottom:8px",
-    "z-index:99999",
-    "max-height:34vh",
-    "overflow:auto",
-    "padding:10px",
-    "margin:0",
-    "border-radius:8px",
-    "background:rgba(0,0,0,.82)",
-    "color:#fff",
-    "font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace",
-    "white-space:pre-wrap",
-  ].join(";");
-  panel.textContent = "LIFF debug\n";
-  document.body.appendChild(panel);
-  return panel;
-}
-
-function markLiffDebug(label, detail = "") {
-  const panel = getLiffDebugPanel();
-  if (!panel) return;
-
-  const elapsed = Math.round(performance.now() - LIFF_DEBUG_STARTED_AT);
-  const line = `[+${elapsed}ms] ${label}${detail ? `: ${detail}` : ""}`;
-  panel.textContent += `${line}\n`;
-  panel.scrollTop = panel.scrollHeight;
-  console.log(line);
-}
-
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
-  markLiffDebug("DOMContentLoaded / initializeOrderPage");
-  markLiffDebug("fetchPublicProductCatalog start");
   await fetchPublicProductCatalog();
-  markLiffDebug("fetchPublicProductCatalog done");
   renderPublicProductCatalog();
   // 1. 初始化 LINE LIFF
 
-  markLiffDebug("liff.init start");
   liff
     .init({
       liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
     })
     .then(() => {
       console.log("LIFF 初始化成功！");
-      markLiffDebug(
-        "liff.init success",
-        `isLoggedIn=${liff.isLoggedIn()} isInClient=${liff.isInClient ? liff.isInClient() : "unknown"}`,
-      );
       if (!liff.isLoggedIn()) {
-        markLiffDebug("liff.login start");
         liff.login();
       } else {
-        markLiffDebug("liff.getProfile start");
         liff
           .getProfile()
           .then((profile) => {
@@ -279,26 +208,14 @@ async function initializeOrderPage() {
             // 同步填入隱藏欄位
             const uidInput = document.getElementById("lineUserIdInput");
             if (uidInput) uidInput.value = currentUserId;
-            markLiffDebug(
-              "liff.getProfile success / UID written",
-              maskDebugValue(currentUserId),
-            );
           })
           .catch((err) => {
             console.error("撈取 LINE Profile 失敗:", err);
-            markLiffDebug(
-              "liff.getProfile failed",
-              String(err && err.message ? err.message : err),
-            );
           });
       }
     })
     .catch((err) => {
       console.error("LIFF 初始化失敗:", err);
-      markLiffDebug(
-        "liff.init failed",
-        String(err && err.message ? err.message : err),
-      );
     });
 
   // 2. 初始化台灣地址選擇器
@@ -961,7 +878,7 @@ async function submitOrder(e) {
     document.getElementById("lineUserIdInput").value || currentUserId;
   if (!lineUserId) {
     alert(
-      "錯誤：尚未成功取得 LINE 帳號權限（UID 為空），請確認您是在 LINE 軟體內開啟此網頁，或稍等數秒重新點擊。",
+      "LINE 帳號確認中，請稍候幾秒後再送出。若仍無法送出，請從 LINE 訂購連結重新開啟。",
     );
     return;
   }
