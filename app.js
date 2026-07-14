@@ -6,6 +6,7 @@ let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let shippingBatchesReady = false;
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
+const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
     id: "p10A",
@@ -229,6 +230,11 @@ async function initializeOrderPage() {
 
   // 3. 讀取可選的希望寄出批次
   fetchShippingBatches();
+
+  const addressDetailInput = document.getElementById("address_detail");
+  if (addressDetailInput) addressDetailInput.addEventListener("input", calculate);
+  const addressSelectorWrap = document.getElementById("twzipcode_wrap");
+  if (addressSelectorWrap) addressSelectorWrap.addEventListener("change", calculate);
 
   // 4. 監聽付款方式變更與表單送出事件
   const paymentMethodSelect = document.getElementById("paymentMethod");
@@ -619,6 +625,37 @@ function handlePaymentChange() {
   calculate();
 }
 
+function getCurrentShippingAddress() {
+  const countySel = document.querySelector("#twzipcode_wrap .county");
+  const districtSel = document.querySelector("#twzipcode_wrap .district");
+  const county = countySel ? countySel.value : "";
+  const district = districtSel ? districtSel.value : "";
+  const detailAddrEl = document.getElementById("address_detail");
+  const detailAddr = detailAddrEl ? detailAddrEl.value : "";
+  return `${county}${district}${detailAddr}`;
+}
+
+function isOffshoreShippingAddress(address) {
+  const text = String(address || "");
+  return OFFSHORE_SHIPPING_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function calculateShippingFeeByAddress(totalBoxes, address) {
+  if (totalBoxes <= 0) return 0;
+
+  if (isOffshoreShippingAddress(address)) {
+    const fullGroups = Math.floor(totalBoxes / 3);
+    const remainder = totalBoxes % 3;
+    const remainderFee = remainder === 1 ? 300 : remainder === 2 ? 350 : 0;
+    return fullGroups * 400 + remainderFee;
+  }
+
+  const remainder = totalBoxes % 3;
+  if (remainder === 1) return 150;
+  if (remainder === 2) return 250;
+  return 0;
+}
+
 async function fetchShippingBatches() {
   const select = document.getElementById("requestedShippingBatchId");
   const status = document.getElementById("shippingBatchStatus");
@@ -753,13 +790,10 @@ function calculate() {
     subTotal += qty * price;
   });
 
-  // 運費規則：3 的倍數免運
-  let shippingFee = 0;
-  if (totalBoxes > 0) {
-    const remainder = totalBoxes % 3;
-    if (remainder === 1) shippingFee = 150;
-    else if (remainder === 2) shippingFee = 250;
-  }
+  const shippingFee = calculateShippingFeeByAddress(
+    totalBoxes,
+    getCurrentShippingAddress(),
+  );
 
   // 貨到付款手續費邏輯
   let codFee = 0;
