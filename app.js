@@ -259,6 +259,26 @@ function updateCustomerViewUrl(view, orderNo = "") {
   window.history.replaceState({}, "", url.toString());
 }
 
+function getInitialCustomerViewParams() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("view")) return params;
+
+  // LIFF secondary redirect 會先把路徑與查詢參數放在 liff.state。
+  const liffState = params.get("liff.state");
+  if (!liffState) return params;
+
+  try {
+    const decodedState = decodeURIComponent(liffState);
+    const queryIndex = decodedState.indexOf("?");
+    return new URLSearchParams(
+      queryIndex >= 0 ? decodedState.slice(queryIndex + 1) : decodedState,
+    );
+  } catch (error) {
+    console.warn("無法解析 LIFF 轉址狀態:", error);
+    return params;
+  }
+}
+
 function showOrderFormView(options = {}) {
   const orderForm = document.getElementById("orderForm");
   const myOrdersSection = document.getElementById("myOrdersSection");
@@ -477,7 +497,7 @@ async function initializeOrderPage() {
     console.error("LIFF 初始化失敗:", error);
   });
 
-  const initialViewParams = new URLSearchParams(window.location.search);
+  const initialViewParams = getInitialCustomerViewParams();
   if (initialViewParams.get("view") === "orders") {
     openMyOrders(initialViewParams.get("order") || "", {
       updateUrl: false,
