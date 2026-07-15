@@ -17,13 +17,32 @@
     />
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
-    <link rel="stylesheet" href="style.css?v=20260707-line-2" />
+    <link rel="stylesheet" href="style.css?v=20260715-my-orders-1" />
     <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
   <body>
     <div class="container">
       <h1>三合院農園訂購系統</h1>
+
+      <nav class="customer-nav" aria-label="訂購功能">
+        <button
+          type="button"
+          id="orderFormTab"
+          class="customer-nav-button active"
+          onclick="showOrderFormView()"
+        >
+          開始訂購
+        </button>
+        <button
+          type="button"
+          id="myOrdersTab"
+          class="customer-nav-button"
+          onclick="openMyOrders()"
+        >
+          我的訂單
+        </button>
+      </nav>
 
       <form id="orderForm" autocomplete="off">
         <!-- 用於儲存 LINE User ID 的隱藏欄位 -->
@@ -232,6 +251,30 @@
         </div>
       </form>
 
+      <section id="myOrdersSection" class="my-orders-section" hidden>
+        <div class="my-orders-header">
+          <div>
+            <p class="my-orders-eyebrow">三合院農園</p>
+            <h2>我的訂單</h2>
+            <p>這裡會顯示店家更新後的最新資料。</p>
+          </div>
+          <button
+            type="button"
+            class="my-orders-refresh"
+            onclick="loadMyOrders({ force: true })"
+          >
+            重新整理
+          </button>
+        </div>
+        <div
+          id="myOrdersStatus"
+          class="my-orders-status"
+          role="status"
+          aria-live="polite"
+        ></div>
+        <div id="myOrdersList" class="my-orders-list"></div>
+      </section>
+
       <div id="successBlock" class="success-box" style="display: none">
         <div
           style="
@@ -307,6 +350,14 @@
           增加下一筆訂單
         </button>
 
+        <button
+          type="button"
+          class="view-my-orders-btn"
+          onclick="openMyOrders()"
+        >
+          查看我的全部訂單
+        </button>
+
         <div class="modify-notice">
     
         </div>
@@ -321,6 +372,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260715-line-auth-fix-1"></script>
+    <script src="./app.js?v=20260715-my-orders-1"></script>
   </body>
 </html>

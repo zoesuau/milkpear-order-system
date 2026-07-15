@@ -4,6 +4,9 @@ let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let lineIdentityPromise = null;
+let myOrdersList = [];
+let myOrdersLoaded = false;
+let focusedMyOrderNo = "";
 let shippingBatchesReady = false;
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
@@ -237,6 +240,235 @@ async function initializeLineIdentity() {
   }
 }
 
+function setCustomerNavActive(view) {
+  const isMyOrders = view === "orders";
+  document.getElementById("orderFormTab")?.classList.toggle("active", !isMyOrders);
+  document.getElementById("myOrdersTab")?.classList.toggle("active", isMyOrders);
+}
+
+function updateCustomerViewUrl(view, orderNo = "") {
+  const url = new URL(window.location.href);
+  if (view === "orders") {
+    url.searchParams.set("view", "orders");
+    if (orderNo) url.searchParams.set("order", orderNo);
+    else url.searchParams.delete("order");
+  } else {
+    url.searchParams.delete("view");
+    url.searchParams.delete("order");
+  }
+  window.history.replaceState({}, "", url.toString());
+}
+
+function showOrderFormView(options = {}) {
+  const orderForm = document.getElementById("orderForm");
+  const myOrdersSection = document.getElementById("myOrdersSection");
+  if (orderForm) orderForm.hidden = false;
+  if (myOrdersSection) myOrdersSection.hidden = true;
+  setCustomerNavActive("form");
+  if (options.updateUrl !== false) updateCustomerViewUrl("form");
+  window.scrollTo({ top: 0, behavior: options.smooth === false ? "auto" : "smooth" });
+}
+
+function openMyOrders(orderNo = "", options = {}) {
+  focusedMyOrderNo = String(orderNo || "").trim();
+  const orderForm = document.getElementById("orderForm");
+  const myOrdersSection = document.getElementById("myOrdersSection");
+  const successBlock = document.getElementById("successBlock");
+  const localHistorySection = document.getElementById("historySection");
+
+  if (orderForm) orderForm.hidden = true;
+  if (myOrdersSection) myOrdersSection.hidden = false;
+  if (successBlock) successBlock.style.display = "none";
+  if (localHistorySection) localHistorySection.style.display = "none";
+  setCustomerNavActive("orders");
+  if (options.updateUrl !== false) updateCustomerViewUrl("orders", focusedMyOrderNo);
+  window.scrollTo({ top: 0, behavior: options.smooth === false ? "auto" : "smooth" });
+  loadMyOrders({ focusOrderNo: focusedMyOrderNo });
+}
+
+function getLineAuthTokens() {
+  return {
+    idToken:
+      typeof liff !== "undefined" && typeof liff.getIDToken === "function"
+        ? liff.getIDToken() || ""
+        : "",
+    accessToken:
+      typeof liff !== "undefined" && typeof liff.getAccessToken === "function"
+        ? liff.getAccessToken() || ""
+        : "",
+  };
+}
+
+async function loadMyOrders(options = {}) {
+  const force = options.force === true;
+  const focusOrderNo = String(options.focusOrderNo || focusedMyOrderNo || "").trim();
+  const status = document.getElementById("myOrdersStatus");
+  const list = document.getElementById("myOrdersList");
+  if (!list) return;
+
+  if (myOrdersLoaded && !force) {
+    renderMyOrders(focusOrderNo);
+    return;
+  }
+
+  if (status) status.textContent = "正在確認 LINE 帳號並讀取訂單...";
+  list.innerHTML = "";
+
+  try {
+    await initializeLineIdentity();
+    const tokens = getLineAuthTokens();
+    if (!tokens.idToken && !tokens.accessToken) {
+      throw new Error("LINE_AUTH_REQUIRED");
+    }
+
+    const response = await fetch(GAS_ORDERS_API_URL + "?t=" + Date.now(), {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "readMyOrders",
+        idToken: tokens.idToken,
+        accessToken: tokens.accessToken,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload?.ok !== true || !Array.isArray(payload.orders)) {
+      throw new Error(payload?.message || "MY_ORDERS_UNAVAILABLE");
+    }
+
+    myOrdersList = payload.orders;
+    myOrdersLoaded = true;
+    renderMyOrders(focusOrderNo);
+  } catch (error) {
+    console.error("讀取我的訂單失敗:", error);
+    if (status) status.textContent = "";
+    list.innerHTML = `
+      <div class="my-orders-error">
+        <strong>目前無法讀取訂單</strong><br>
+        請從 LINE 訂購連結重新開啟，或稍後再試。<br>
+        <button type="button" onclick="loadMyOrders({ force: true })">重新讀取</button>
+      </div>`;
+  }
+}
+
+function getMyOrderStatusMeta(order) {
+  const rawStatus = String(order?.orderStatus || "").trim();
+  const cancelled = rawStatus.includes("取消");
+  const shipped = !cancelled && (rawStatus.includes("寄出") || Boolean(order?.actualShippingDate));
+  const scheduled =
+    !cancelled &&
+    (shipped || rawStatus.includes("安排出貨") || Boolean(order?.expectedShippingDate));
+
+  let label = rawStatus || "訂單處理中";
+  if (rawStatus === "待確認") label = "訂單處理中";
+  if (rawStatus === "已安排出貨") label = "出貨日期已確認";
+
+  return {
+    label,
+    className: cancelled ? "cancelled" : shipped ? "shipped" : "",
+    cancelled,
+    shipped,
+    scheduled,
+  };
+}
+
+function getMyOrderPaymentLabel(order) {
+  const state = String(order?.paymentState || "").trim();
+  if (state === "bank_paid") return "匯款已確認";
+  if (state === "bank_unpaid") return "匯款待確認";
+  if (state === "cod") return "貨到付款";
+  return String(order?.paymentStatus || order?.paymentMethod || "待確認").trim();
+}
+
+function myOrderDetailRow(label, value) {
+  const normalizedValue = String(value ?? "").trim();
+  if (!normalizedValue) return "";
+  return `<span class="my-order-detail-label">${escapeHtml(label)}</span><span>${escapeHtml(normalizedValue)}</span>`;
+}
+
+function renderMyOrders(focusOrderNo = "") {
+  const status = document.getElementById("myOrdersStatus");
+  const list = document.getElementById("myOrdersList");
+  if (!list) return;
+  if (status) status.textContent = "";
+
+  if (!myOrdersList.length) {
+    list.innerHTML = `
+      <div class="my-orders-empty">
+        <strong>目前還沒有可顯示的訂單</strong><br>
+        使用同一個 LINE 帳號送單後，訂單會出現在這裡。
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = myOrdersList
+    .map((order) => {
+      const statusMeta = getMyOrderStatusMeta(order);
+      const orderNo = String(order?.orderNo || "").trim();
+      const isFocused = focusOrderNo && orderNo === focusOrderNo;
+      const amount = Number(order?.finalAmount || 0).toLocaleString("zh-TW");
+      const batch = order?.expectedShippingDate
+        ? `確定出貨：${escapeHtml(order.expectedShippingDate)}`
+        : escapeHtml(order?.requestedShippingBatchLabel || "出貨日期待確認");
+      const progress = statusMeta.cancelled
+        ? `<div class="my-order-progress"><span class="my-order-progress-step done">已收到</span><span class="my-order-progress-step">已取消</span><span class="my-order-progress-step">不出貨</span></div>`
+        : `<div class="my-order-progress">
+            <span class="my-order-progress-step done">已收到</span>
+            <span class="my-order-progress-step ${statusMeta.scheduled ? "done" : ""}">日期確認</span>
+            <span class="my-order-progress-step ${statusMeta.shipped ? "done" : ""}">已出貨</span>
+          </div>`;
+
+      return `
+        <article class="my-order-card" id="my-order-${escapeHtmlAttribute(orderNo)}">
+          <div class="my-order-card-top">
+            <div class="my-order-card-heading">
+              <div>
+                <p class="my-order-number">訂單 ${escapeHtml(orderNo)}</p>
+                <p class="my-order-date">下單時間：${escapeHtml(order?.createdAt || "")}</p>
+              </div>
+              <span class="my-order-status-chip ${statusMeta.className}">${escapeHtml(statusMeta.label)}</span>
+            </div>
+            <div class="my-order-card-summary">
+              <div>
+                <p class="my-order-recipient">${escapeHtml(order?.recipientName || "")}｜${escapeHtml(order?.totalBoxes || "0")} 盒</p>
+                <p class="my-order-batch">${batch}</p>
+              </div>
+              <p class="my-order-amount">$${amount}</p>
+            </div>
+          </div>
+          ${progress}
+          <details class="my-order-details" ${isFocused ? "open" : ""}>
+            <summary>查看訂單明細</summary>
+            <div class="my-order-details-body">
+              <div class="my-order-detail-grid">
+                ${myOrderDetailRow("付款狀態", getMyOrderPaymentLabel(order))}
+                ${myOrderDetailRow("付款方式", order?.paymentMethod)}
+                ${myOrderDetailRow("希望寄出", order?.requestedShippingBatchLabel)}
+                ${myOrderDetailRow("確定出貨", order?.expectedShippingDate)}
+                ${myOrderDetailRow("實際寄出", order?.actualShippingDate)}
+                ${myOrderDetailRow("物流單號", order?.trackingNo)}
+                ${myOrderDetailRow("收件人", order?.recipientName)}
+                ${myOrderDetailRow("聯絡電話", order?.recipientPhone)}
+                ${myOrderDetailRow("配送地址", order?.recipientAddress)}
+                ${myOrderDetailRow("黑貓運費", `$${Number(order?.shippingFee || 0).toLocaleString("zh-TW")}`)}
+                ${myOrderDetailRow("最後更新", order?.lastUpdatedAt)}
+                ${myOrderDetailRow("備註", order?.customerNote)}
+              </div>
+              <div class="my-order-items"><strong>商品明細</strong>\n${escapeHtml(order?.itemsSummary || "無商品資料")}</div>
+            </div>
+          </details>
+        </article>`;
+    })
+    .join("");
+
+  if (focusOrderNo) {
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`my-order-${focusOrderNo}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+}
+
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
@@ -244,6 +476,14 @@ async function initializeOrderPage() {
   initializeLineIdentity().catch((error) => {
     console.error("LIFF 初始化失敗:", error);
   });
+
+  const initialViewParams = new URLSearchParams(window.location.search);
+  if (initialViewParams.get("view") === "orders") {
+    openMyOrders(initialViewParams.get("order") || "", {
+      updateUrl: false,
+      smooth: false,
+    });
+  }
 
   await fetchPublicProductCatalog();
   renderPublicProductCatalog();
@@ -1096,6 +1336,8 @@ async function submitOrder(e) {
     data.requestedShippingBatchLabel = String(
       result.requestedShippingBatchLabel,
     ).trim();
+    data.orderNo = String(result.orderNo || "").trim();
+    myOrdersLoaded = false;
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
     if (document.getElementById("successName"))

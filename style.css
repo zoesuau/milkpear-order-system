@@ -1,6 +1,4 @@
 ::placeholder {
-
-  
   color: rgba(140, 134, 122, 0.8);
 }
 :root {
@@ -10,9 +8,9 @@
   --accent-color: #e68a4b; /* 暖陽橘 */
   --accent-light: #fffaf4; /* 輕盈淺橘 */
   --text-color: #4a463f; /* 深茶色字體 */
-  --text-muted: #8c867a; /* 淺茶色提示字 */ 
+  --text-muted: #8c867a; /* 淺茶色提示字 */
   --shadow-sm: 0 4px 16px rgba(140, 134, 122, 0.06);
-  --shadow-md: 0 8px 24px rgba(140, 134, 122, 0.12); 
+  --shadow-md: 0 8px 24px rgba(140, 134, 122, 0.12);
 }
 * {
   box-sizing: border-box;
@@ -60,6 +58,33 @@ h1::before {
   background-color: var(--accent-color);
   border-radius: 87% 59% 89% 73%;
   transform: rotate(-10deg);
+}
+
+.customer-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding: 5px;
+  background: #f5f2ec;
+  border-radius: 999px;
+}
+
+.customer-nav-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.customer-nav-button.active {
+  background: #fff;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .farm-name {
@@ -930,6 +955,271 @@ input[type="number"] {
   margin-top: 20px;
   text-align: center;
 }
+
+.view-my-orders-btn {
+  width: 100%;
+  max-width: 260px;
+  margin-top: 10px;
+  padding: 12px 20px;
+  border: 1px solid var(--primary-color);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--primary-color);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-orders-section {
+  min-height: 55vh;
+}
+
+.my-orders-section[hidden] {
+  display: none;
+}
+
+.my-orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 4px 20px;
+  border-bottom: 1px solid #edeae1;
+}
+
+.my-orders-eyebrow {
+  margin: 0 0 2px;
+  color: var(--accent-color);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.my-orders-header h2 {
+  margin: 0;
+  color: var(--primary-color);
+  font-size: 1.7rem;
+}
+
+.my-orders-header p:last-child {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.my-orders-refresh {
+  flex: 0 0 auto;
+  border: 1px solid #d9e6dd;
+  border-radius: 999px;
+  padding: 9px 14px;
+  background: #fff;
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-orders-status {
+  padding: 22px 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.my-orders-status:empty {
+  display: none;
+}
+
+.my-orders-list {
+  display: grid;
+  gap: 16px;
+  padding-top: 18px;
+}
+
+.my-order-card {
+  overflow: hidden;
+  border: 1px solid #e8e1d8;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.my-order-card-top {
+  padding: 17px;
+  background: linear-gradient(135deg, #f7fbf8 0%, #fffaf4 100%);
+}
+
+.my-order-card-heading,
+.my-order-card-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.my-order-number {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.my-order-date {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.my-order-status-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--pear-light);
+  color: var(--primary-color);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.my-order-status-chip.shipped {
+  background: #e9f4ff;
+  color: #3377a6;
+}
+
+.my-order-status-chip.cancelled {
+  background: #f4f1ef;
+  color: #8c867a;
+}
+
+.my-order-card-summary {
+  align-items: flex-end;
+  margin-top: 16px;
+}
+
+.my-order-card-summary p {
+  margin: 0;
+}
+
+.my-order-recipient {
+  font-weight: 700;
+}
+
+.my-order-batch {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.my-order-amount {
+  color: var(--accent-color);
+  font-size: 1.55rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.my-order-progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 14px 17px;
+  border-top: 1px solid #f1ede5;
+  border-bottom: 1px solid #f1ede5;
+  background: #fff;
+}
+
+.my-order-progress-step {
+  position: relative;
+  padding-top: 13px;
+  color: #aaa59b;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.my-order-progress-step::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  height: 5px;
+  border-radius: 99px;
+  background: #e6e1d8;
+}
+
+.my-order-progress-step.done {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.my-order-progress-step.done::before {
+  background: var(--primary-color);
+}
+
+.my-order-details summary {
+  padding: 14px 17px;
+  color: var(--primary-color);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.my-order-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.my-order-details summary::after {
+  content: "＋";
+  float: right;
+}
+
+.my-order-details[open] summary::after {
+  content: "－";
+}
+
+.my-order-details-body {
+  padding: 0 17px 18px;
+}
+
+.my-order-detail-grid {
+  display: grid;
+  grid-template-columns: 7em 1fr;
+  gap: 8px 12px;
+  margin-top: 10px;
+  font-size: 0.92rem;
+}
+
+.my-order-detail-label {
+  color: var(--text-muted);
+}
+
+.my-order-items {
+  margin: 14px 0 0;
+  padding: 13px;
+  border-radius: 12px;
+  background: #f8f6f1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+}
+
+.my-orders-empty,
+.my-orders-error {
+  padding: 44px 18px;
+  border: 1px dashed #ddd9ce;
+  border-radius: 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.my-orders-error button {
+  margin-top: 12px;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: var(--primary-color);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+}
 .payment-instruction-box {
   text-align: left;
   background: #fffdf3;
@@ -1111,5 +1401,21 @@ input[type="number"] {
   }
   .address-selector {
     grid-template-columns: 1fr;
+  }
+  .customer-nav-button {
+    font-size: 1.05rem;
+    padding: 12px 10px;
+  }
+  .my-orders-header {
+    align-items: center;
+  }
+  .my-orders-header h2 {
+    font-size: 1.55rem;
+  }
+  .my-orders-header p:last-child {
+    font-size: 0.85rem;
+  }
+  .my-order-detail-grid {
+    grid-template-columns: 6.5em 1fr;
   }
 }
