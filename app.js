@@ -3,6 +3,7 @@ let orderHistoryList = [];
 let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
+let lineIdentityPromise = null;
 let shippingBatchesReady = false;
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
@@ -182,41 +183,70 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
 ];
 let PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
 
+function saveLineIdentity(userId, displayName = "") {
+  const normalizedUserId = String(userId || "").trim();
+  if (normalizedUserId) currentUserId = normalizedUserId;
+
+  const normalizedDisplayName = String(displayName || "").trim();
+  if (normalizedDisplayName) currentUserDisplayName = normalizedDisplayName;
+
+  const uidInput = document.getElementById("lineUserIdInput");
+  if (uidInput && currentUserId) uidInput.value = currentUserId;
+}
+
+async function initializeLineIdentity() {
+  if (currentUserId) return currentUserId;
+  if (lineIdentityPromise) return lineIdentityPromise;
+
+  lineIdentityPromise = (async () => {
+    if (typeof liff === "undefined") throw new Error("LIFF_SDK_UNAVAILABLE");
+
+    await liff.init({ liffId: "2010333281-Ra5txFF3" });
+    console.log("LIFF 初始化成功！");
+
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: window.location.href });
+      return "";
+    }
+
+    // ID token 內的 sub 就是 LINE UID，不必等 getProfile 請求才能送單。
+    if (typeof liff.getDecodedIDToken === "function") {
+      const decodedToken = liff.getDecodedIDToken();
+      saveLineIdentity(decodedToken?.sub, decodedToken?.name);
+    }
+
+    // 顯示名稱與 UID 備援；失敗時仍可以用 token 由後端驗證。
+    if (typeof liff.getProfile === "function") {
+      liff
+        .getProfile()
+        .then((profile) => {
+          saveLineIdentity(profile?.userId, profile?.displayName);
+        })
+        .catch((error) => {
+          console.warn("撈取 LINE Profile 失敗，改用 LIFF token 驗證：", error);
+        });
+    }
+
+    return currentUserId;
+  })();
+
+  try {
+    return await lineIdentityPromise;
+  } finally {
+    lineIdentityPromise = null;
+  }
+}
+
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
+  // LINE 驗證要立即開始，不要被商品 API 的網路速度卡住。
+  initializeLineIdentity().catch((error) => {
+    console.error("LIFF 初始化失敗:", error);
+  });
+
   await fetchPublicProductCatalog();
   renderPublicProductCatalog();
-  // 1. 初始化 LINE LIFF
-
-  liff
-    .init({
-      liffId: "2010333281-Ra5txFF3", // 妳的 LIFF ID
-    })
-    .then(() => {
-      console.log("LIFF 初始化成功！");
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
-        liff
-          .getProfile()
-          .then((profile) => {
-            currentUserId = profile.userId;
-            currentUserDisplayName = String(
-              profile && profile.displayName ? profile.displayName : "",
-            ).trim();
-            // 同步填入隱藏欄位
-            const uidInput = document.getElementById("lineUserIdInput");
-            if (uidInput) uidInput.value = currentUserId;
-          })
-          .catch((err) => {
-            console.error("撈取 LINE Profile 失敗:", err);
-          });
-      }
-    })
-    .catch((err) => {
-      console.error("LIFF 初始化失敗:", err);
-    });
 
   // 2. 初始化台灣地址選擇器
   if (document.getElementById("twzipcode_wrap")) {
@@ -873,27 +903,41 @@ function handleSenderInput() {
 async function submitOrder(e) {
   if (e) e.preventDefault();
 
-  // 🛡️ 防呆安全鎖
-  const lineUserId =
-    document.getElementById("lineUserIdInput").value || currentUserId;
-  if (!lineUserId) {
-    alert(
-      "LINE 帳號確認中，請稍候幾秒後再送出。若仍無法送出，請從 LINE 訂購連結重新開啟。",
-    );
-    return;
-  }
-  const lineIdToken =
+  let lineIdToken =
     typeof liff !== "undefined" && typeof liff.getIDToken === "function"
       ? liff.getIDToken()
       : "";
-  const lineAccessToken =
+  let lineAccessToken =
     typeof liff !== "undefined" && typeof liff.getAccessToken === "function"
       ? liff.getAccessToken()
       : "";
+
+  // 點送出時若 LIFF 還沒就緒，主動等它完成並重取憑證。
+  if (!lineIdToken && !lineAccessToken) {
+    try {
+      await initializeLineIdentity();
+    } catch (error) {
+      console.error("送單前 LINE 身分確認失敗:", error);
+    }
+
+    lineIdToken =
+      typeof liff !== "undefined" && typeof liff.getIDToken === "function"
+        ? liff.getIDToken()
+        : "";
+    lineAccessToken =
+      typeof liff !== "undefined" && typeof liff.getAccessToken === "function"
+        ? liff.getAccessToken()
+        : "";
+  }
+
   if (!lineIdToken && !lineAccessToken) {
     alert("錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。");
     return;
   }
+
+  // 若 profile 請求失敗，後端仍會從已驗證 token 安全取得 UID。
+  const lineUserId =
+    document.getElementById("lineUserIdInput").value || currentUserId;
 
   const total = document.getElementById("grandTotal").innerText;
   const boxes = document.getElementById("totalBoxes").innerText;
