@@ -8,6 +8,10 @@ let myOrdersList = [];
 let myOrdersLoaded = false;
 let focusedMyOrderNo = "";
 let shippingBatchesReady = false;
+let orderFormSupplementState = {
+  successVisible: false,
+  historyVisible: false,
+};
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
@@ -282,8 +286,20 @@ function getInitialCustomerViewParams() {
 function showOrderFormView(options = {}) {
   const orderForm = document.getElementById("orderForm");
   const myOrdersSection = document.getElementById("myOrdersSection");
+  const successBlock = document.getElementById("successBlock");
+  const localHistorySection = document.getElementById("historySection");
   if (orderForm) orderForm.hidden = false;
   if (myOrdersSection) myOrdersSection.hidden = true;
+  if (successBlock) {
+    successBlock.style.display = orderFormSupplementState.successVisible
+      ? "block"
+      : "none";
+  }
+  if (localHistorySection) {
+    localHistorySection.style.display = orderFormSupplementState.historyVisible
+      ? "block"
+      : "none";
+  }
   setCustomerNavActive("form");
   if (options.updateUrl !== false) updateCustomerViewUrl("form");
   window.scrollTo({ top: 0, behavior: options.smooth === false ? "auto" : "smooth" });
@@ -295,6 +311,15 @@ function openMyOrders(orderNo = "", options = {}) {
   const myOrdersSection = document.getElementById("myOrdersSection");
   const successBlock = document.getElementById("successBlock");
   const localHistorySection = document.getElementById("historySection");
+
+  // 只有從訂購頁離開時才記錄，避免在「我的訂單」內重複操作時
+  // 把原本應恢復的完成訂單區塊狀態覆寫成全部隱藏。
+  if (!orderForm?.hidden) {
+    orderFormSupplementState = {
+      successVisible: successBlock?.style.display !== "none",
+      historyVisible: localHistorySection?.style.display !== "none",
+    };
+  }
 
   if (orderForm) orderForm.hidden = true;
   if (myOrdersSection) myOrdersSection.hidden = false;
