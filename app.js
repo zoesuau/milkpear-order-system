@@ -421,6 +421,9 @@ function getMyOrderPaymentLabel(order) {
   if (state === "bank_paid") return "匯款已確認";
   if (state === "bank_unpaid") return "匯款待確認";
   if (state === "cod") return "貨到付款";
+  if (state === "bank_paid_cod_balance") {
+    return "原款已匯款＋追加款貨到付款";
+  }
   return String(order?.paymentStatus || order?.paymentMethod || "待確認").trim();
 }
 
