@@ -17,11 +17,39 @@
     />
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
-    <link rel="stylesheet" href="style.css?v=20260715-my-orders-1" />
+    <link rel="stylesheet" href="style.css?v=20260718-line-friend-gate-1" />
     <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
   <body>
+    <div
+      id="lineFriendGate"
+      class="line-friend-gate"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lineFriendGateTitle"
+      hidden
+    >
+      <div class="line-friend-gate-card">
+        <div class="line-friend-gate-brand">三合院農園</div>
+        <h2 id="lineFriendGateTitle">請先加入官方 LINE</h2>
+        <p id="lineFriendGateMessage">
+          為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。
+        </p>
+        <a
+          id="lineAddFriendLink"
+          class="line-add-friend-link"
+          href="#"
+          target="_blank"
+          rel="noopener"
+          hidden
+        >加入官方 LINE</a>
+        <button id="lineFriendRecheck" class="line-friend-recheck" type="button">
+          我已加入，重新確認
+        </button>
+        <small>已是好友的客戶，確認後會直接進入訂購頁。</small>
+      </div>
+    </div>
     <div class="container">
       <h1>三合院農園訂購系統</h1>
 
@@ -245,6 +273,7 @@
             class="submit-btn"
             id="submitBtn"
             onclick="submitOrder(event)"
+            disabled
           >
             送出訂單
           </button>
@@ -372,6 +401,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260716-order-view-restore-1"></script>
+    <script src="./app.js?v=20260718-line-friend-gate-1"></script>
   </body>
 </html>
