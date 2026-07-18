@@ -13,6 +13,12 @@ let lineFriendshipCheckPromise = null;
 let lineOfficialAccountFriendUrl = "";
 let lineLoginRedirectInProgress = false;
 let orderSubmitInProgress = false;
+let lineLiffInitialized = false;
+let linePairingToken = "";
+let linePairingPollTimer = null;
+let linePairingCompletionPromise = null;
+const LINE_LIFF_ID = "2010333281-Ra5txFF3";
+const LINE_LIFF_URL = `https://liff.line.me/${LINE_LIFF_ID}`;
 let orderFormSupplementState = {
   successVisible: false,
   historyVisible: false,
@@ -206,14 +212,19 @@ function saveLineIdentity(userId, displayName = "") {
   if (uidInput && currentUserId) uidInput.value = currentUserId;
 }
 
+async function initializeLiffSdk() {
+  if (lineLiffInitialized) return;
+  if (typeof liff === "undefined") throw new Error("LIFF_SDK_UNAVAILABLE");
+  await liff.init({ liffId: LINE_LIFF_ID });
+  lineLiffInitialized = true;
+}
+
 async function initializeLineIdentity() {
   if (currentUserId) return currentUserId;
   if (lineIdentityPromise) return lineIdentityPromise;
 
   lineIdentityPromise = (async () => {
-    if (typeof liff === "undefined") throw new Error("LIFF_SDK_UNAVAILABLE");
-
-    await liff.init({ liffId: "2010333281-Ra5txFF3" });
+    await initializeLiffSdk();
     console.log("LIFF 初始化成功！");
 
     if (!liff.isLoggedIn()) {
@@ -263,8 +274,7 @@ function updateOrderSubmitAvailability() {
   if (!button) return;
   button.disabled =
     orderSubmitInProgress ||
-    !shippingBatchesReady ||
-    lineFriendshipState !== "friend";
+    !shippingBatchesReady;
 }
 
 async function fetchLineOfficialAccountFriendUrl() {
@@ -327,10 +337,7 @@ function showLineFriendGate(message) {
   const addFriendLink = document.getElementById("lineAddFriendLink");
   if (messageElement && message) messageElement.textContent = message;
   if (addFriendLink) {
-    addFriendLink.hidden = !lineOfficialAccountFriendUrl;
-    if (lineOfficialAccountFriendUrl) {
-      addFriendLink.href = lineOfficialAccountFriendUrl;
-    }
+    addFriendLink.hidden = false;
   }
   if (gate) gate.hidden = false;
   document.body.classList.add("line-friend-gate-open");
@@ -379,11 +386,6 @@ async function checkLineOfficialAccountFriendship(options = {}) {
       }
 
       lineFriendshipState = "not_friend";
-      try {
-        await fetchLineOfficialAccountFriendUrl();
-      } catch (friendUrlError) {
-        console.error("取得官方 LINE 加好友網址失敗:", friendUrlError);
-      }
       if (showGate) {
         showLineFriendGate(
           "為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。",
@@ -413,6 +415,178 @@ async function checkLineOfficialAccountFriendship(options = {}) {
   }
 }
 
+async function requestLineOfficialAccountFriendship() {
+  const message = document.getElementById("lineFriendGateMessage");
+  const button = document.getElementById("lineAddFriendLink");
+  if (button) button.disabled = true;
+  if (message) message.textContent = "正在開啟 LINE 好友邀請…";
+
+  try {
+    await initializeLineIdentity();
+    if (lineLoginRedirectInProgress) return;
+    if (typeof liff.requestFriendship !== "function") {
+      throw new Error("LINE_REQUEST_FRIENDSHIP_UNAVAILABLE");
+    }
+    await liff.requestFriendship();
+    const isFriend = await checkLineOfficialAccountFriendship({
+      showGate: false,
+    });
+    if (!isFriend) {
+      showLineFriendGate("尚未完成加入，請再按一次「加入官方 LINE」。");
+      return;
+    }
+    const pairingToken = getPairingTokenFromUrl();
+    if (pairingToken) {
+      await completeLinePairingFromPhone(pairingToken);
+    } else {
+      hideLineFriendGate();
+    }
+  } catch (error) {
+    console.error("LINE 原頁加入好友失敗:", error);
+    showLineFriendGate(
+      "無法在目前視窗開啟好友邀請，請改用 LINE 內的訂購連結重新進入。",
+    );
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function getPairingTokenFromUrl() {
+  return String(getInitialCustomerViewParams().get("pair") || "").trim();
+}
+
+async function postLinePairingAction(action, extra = {}) {
+  const response = await fetch(GAS_ORDERS_API_URL + "?t=" + Date.now(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload?.ok !== true || payload?.action !== action) {
+    throw new Error(payload?.error || "LINE_PAIRING_UNAVAILABLE");
+  }
+  return payload;
+}
+
+async function createDesktopLinePairing() {
+  const panel = document.getElementById("linePairingPanel");
+  const status = document.getElementById("linePairingStatus");
+  const qrRoot = document.getElementById("linePairingQr");
+  if (panel) panel.hidden = false;
+  if (status) status.textContent = "正在建立安全的 LINE 綁定碼…";
+
+  const payload = await postLinePairingAction("createLinePairing");
+  linePairingToken = String(payload.pairingToken || "").trim();
+  if (!linePairingToken) throw new Error("LINE_PAIRING_TOKEN_MISSING");
+
+  const pairingUrl = `${LINE_LIFF_URL}?pair=${encodeURIComponent(linePairingToken)}`;
+  const mobileLink = document.getElementById("linePairingMobileLink");
+  if (mobileLink) mobileLink.href = pairingUrl;
+  if (qrRoot) {
+    qrRoot.innerHTML = "";
+    if (typeof QRCode !== "function") throw new Error("QR_CODE_UNAVAILABLE");
+    new QRCode(qrRoot, {
+      text: pairingUrl,
+      width: 120,
+      height: 120,
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  }
+  if (status) {
+    status.textContent =
+      "請用手機 LINE 掃描 QR Code；完成後這一頁會自動顯示已連結。";
+  }
+  scheduleLinePairingPoll();
+}
+
+function scheduleLinePairingPoll() {
+  if (linePairingPollTimer) window.clearTimeout(linePairingPollTimer);
+  linePairingPollTimer = window.setTimeout(pollLinePairingStatus, 1800);
+}
+
+async function pollLinePairingStatus() {
+  if (!linePairingToken) return;
+  try {
+    const requestUrl = new URL(GAS_ORDERS_API_URL);
+    requestUrl.searchParams.set("action", "readLinePairingStatus");
+    requestUrl.searchParams.set("pairingToken", linePairingToken);
+    requestUrl.searchParams.set("t", String(Date.now()));
+    const response = await fetch(requestUrl.toString(), { cache: "no-store" });
+    const payload = await response.json();
+    if (payload?.ok === true && payload?.paired === true) {
+      lineFriendshipState = "friend";
+      const panel = document.getElementById("linePairingPanel");
+      const status = document.getElementById("linePairingStatus");
+      panel?.classList.add("is-complete");
+      if (status) {
+        const name = String(payload.displayName || "").trim();
+        status.textContent = `${name ? name + "，" : ""}LINE 已連結，可以直接在電腦送出訂單。`;
+      }
+      updateOrderSubmitAvailability();
+      return;
+    }
+  } catch (error) {
+    console.warn("等待 LINE 綁定中:", error);
+  }
+  scheduleLinePairingPoll();
+}
+
+async function completeLinePairingFromPhone(pairingToken) {
+  if (linePairingCompletionPromise) return linePairingCompletionPromise;
+  linePairingCompletionPromise = (async () => {
+    const idToken = liff.getIDToken?.() || "";
+    const accessToken = liff.getAccessToken?.() || "";
+    const payload = await postLinePairingAction("completeLinePairing", {
+      pairingToken,
+      idToken,
+      accessToken,
+    });
+    lineFriendshipState = "friend";
+    const title = document.getElementById("lineFriendGateTitle");
+    const addButton = document.getElementById("lineAddFriendLink");
+    const recheckButton = document.getElementById("lineFriendRecheck");
+    if (title) title.textContent = "電腦已成功連結";
+    if (recheckButton) recheckButton.hidden = true;
+    showLineFriendGate(
+      `已連結${payload.displayName ? "「" + payload.displayName + "」" : "你的 LINE"}，請回到電腦繼續填寫訂單。`,
+    );
+    if (addButton) addButton.hidden = true;
+    return true;
+  })();
+  try {
+    return await linePairingCompletionPromise;
+  } finally {
+    linePairingCompletionPromise = null;
+  }
+}
+
+async function initializeLineExperience() {
+  await initializeLiffSdk();
+  const pairingToken = getPairingTokenFromUrl();
+  const inLineClient = typeof liff.isInClient === "function" && liff.isInClient();
+
+  if (!inLineClient && !pairingToken) {
+    lineFriendshipState = "pairing";
+    await createDesktopLinePairing();
+    return;
+  }
+
+  await initializeLineIdentity();
+  if (lineLoginRedirectInProgress) return;
+  lineFriendshipState = "unknown";
+  updateOrderSubmitAvailability();
+
+  if (!pairingToken) return;
+  const isFriend = await checkLineOfficialAccountFriendship({ showGate: false });
+  if (isFriend) {
+    await completeLinePairingFromPhone(pairingToken);
+  } else {
+    showLineFriendGate(
+      "只要在這一頁加入官方 LINE，就能立即完成電腦綁定，不會跳到官方帳號首頁。",
+    );
+  }
+}
+
 async function recheckLineOfficialAccountFriendship() {
   const status = document.getElementById("lineFriendGateMessage");
   const button = document.getElementById("lineFriendRecheck");
@@ -421,7 +595,11 @@ async function recheckLineOfficialAccountFriendship() {
   try {
     await initializeLineIdentity();
     if (lineLoginRedirectInProgress) return;
-    await checkLineOfficialAccountFriendship({ showGate: true });
+    const isFriend = await checkLineOfficialAccountFriendship({ showGate: true });
+    const pairingToken = getPairingTokenFromUrl();
+    if (isFriend && pairingToken) {
+      await completeLinePairingFromPhone(pairingToken);
+    }
   } catch (error) {
     console.error("重新確認 LINE 好友狀態失敗:", error);
     lineFriendshipState = "error";
@@ -549,10 +727,12 @@ async function loadMyOrders(options = {}) {
   list.innerHTML = "";
 
   try {
-    await initializeLineIdentity();
-    if (lineLoginRedirectInProgress) return;
+    if (!linePairingToken) {
+      await initializeLineIdentity();
+      if (lineLoginRedirectInProgress) return;
+    }
     const tokens = getLineAuthTokens();
-    if (!tokens.idToken && !tokens.accessToken) {
+    if (!linePairingToken && !tokens.idToken && !tokens.accessToken) {
       throw new Error("LINE_AUTH_REQUIRED");
     }
 
@@ -561,6 +741,7 @@ async function loadMyOrders(options = {}) {
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         action: "readMyOrders",
+        linePairingToken,
         idToken: tokens.idToken,
         accessToken: tokens.accessToken,
       }),
@@ -715,24 +896,20 @@ async function initializeOrderPage() {
   document
     .getElementById("lineFriendRecheck")
     ?.addEventListener("click", recheckLineOfficialAccountFriendship);
-  document.getElementById("lineAddFriendLink")?.addEventListener("click", () => {
-    const message = document.getElementById("lineFriendGateMessage");
-    if (message) {
-      message.textContent =
-        "加入完成後請回到本頁，按「我已加入，重新確認」。";
-    }
-  });
+  document
+    .getElementById("lineAddFriendLink")
+    ?.addEventListener("click", requestLineOfficialAccountFriendship);
 
-  // LINE 驗證要立即開始，不要被商品 API 的網路速度卡住。
-  initializeLineIdentity()
-    .then(() => {
-      if (lineLoginRedirectInProgress) return;
-      return checkLineOfficialAccountFriendship({ showGate: true });
-    })
+  // 商品先用前台備援清單立即顯示，不等待後端與 LINE 驗證。
+  renderPublicProductCatalog();
+
+  // LINE 內直接取得身分；外部瀏覽器改走手機掃碼綁定。
+  initializeLineExperience()
     .catch((error) => {
-      console.error("LIFF 初始化失敗:", error);
+      console.error("LINE 使用情境初始化失敗:", error);
       lineFriendshipState = "error";
-      showLineFriendGate("LINE 登入或好友狀態確認失敗，請重新整理頁面後再試。");
+      const status = document.getElementById("linePairingStatus");
+      if (status) status.textContent = "LINE 綁定服務暫時無法使用，請稍後重新整理。";
     });
 
   const initialViewParams = getInitialCustomerViewParams();
@@ -743,8 +920,7 @@ async function initializeOrderPage() {
     });
   }
 
-  await fetchPublicProductCatalog();
-  renderPublicProductCatalog();
+  fetchPublicProductCatalog().then(renderPublicProductCatalog);
 
   // 2. 初始化台灣地址選擇器
   if (
@@ -1405,7 +1581,17 @@ function handleSenderInput() {
 async function submitOrder(e) {
   if (e) e.preventDefault();
 
-  if (
+  const isDesktopPairing = Boolean(linePairingToken);
+  if (isDesktopPairing) {
+    if (lineFriendshipState !== "friend") {
+      alert("請先用手機 LINE 掃描頁面上方的 QR Code 完成連結。");
+      document.getElementById("linePairingPanel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+  } else if (
     lineFriendshipState !== "friend" &&
     !(await checkLineOfficialAccountFriendship({ showGate: true }))
   ) {
@@ -1422,7 +1608,7 @@ async function submitOrder(e) {
       : "";
 
   // 點送出時若 LIFF 還沒就緒，主動等它完成並重取憑證。
-  if (!lineIdToken && !lineAccessToken) {
+  if (!isDesktopPairing && !lineIdToken && !lineAccessToken) {
     try {
       await initializeLineIdentity();
     } catch (error) {
@@ -1439,7 +1625,7 @@ async function submitOrder(e) {
         : "";
   }
 
-  if (!lineIdToken && !lineAccessToken) {
+  if (!isDesktopPairing && !lineIdToken && !lineAccessToken) {
     alert("錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。");
     return;
   }
@@ -1544,6 +1730,7 @@ async function submitOrder(e) {
   // 封裝要傳給 GAS 的完美 JSON 結構
   const data = {
     lineUserId: lineUserId,
+    linePairingToken: isDesktopPairing ? linePairingToken : "",
     idToken: lineIdToken,
     accessToken: lineAccessToken,
     lineDisplayName: currentUserDisplayName,

@@ -9,6 +9,7 @@
     <title>三合院農園訂購系統</title>
     <!-- 🎯 核心引入 1：LINE 官方 LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
     <!-- 引入日系文青感字體 -->
     <link
@@ -17,7 +18,7 @@
     />
 
     <!-- 🎯 核心引入 2：連動你的獨立排版樣式表 -->
-    <link rel="stylesheet" href="style.css?v=20260718-line-friend-gate-1" />
+    <link rel="stylesheet" href="style.css?v=20260719-line-pairing-1" />
     <script src="https://cdn.jsdelivr.net/npm/tw-city-selector/dist/tw-city-selector.min.js"></script>
   </head>
 
@@ -36,14 +37,12 @@
         <p id="lineFriendGateMessage">
           為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。
         </p>
-        <a
+        <button
           id="lineAddFriendLink"
           class="line-add-friend-link"
-          href="#"
-          target="_blank"
-          rel="noopener"
+          type="button"
           hidden
-        >加入官方 LINE</a>
+        >加入官方 LINE</button>
         <button id="lineFriendRecheck" class="line-friend-recheck" type="button">
           我已加入，重新確認
         </button>
@@ -52,6 +51,16 @@
     </div>
     <div class="container">
       <h1>三合院農園訂購系統</h1>
+
+      <section id="linePairingPanel" class="line-pairing-panel" hidden>
+        <div class="line-pairing-copy">
+          <span class="line-pairing-eyebrow">桌機大量訂購</span>
+          <h2>用手機 LINE 綁定這台電腦</h2>
+          <p id="linePairingStatus">請用手機 LINE 掃描 QR Code，完成後本頁會自動連結。</p>
+          <a id="linePairingMobileLink" class="line-pairing-mobile-link" href="#">在手機 LINE 開啟</a>
+        </div>
+        <div id="linePairingQr" class="line-pairing-qr" aria-label="LINE 綁定 QR Code"></div>
+      </section>
 
       <nav class="customer-nav" aria-label="訂購功能">
         <button
@@ -401,6 +410,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260719-line-friend-gate-3"></script>
+    <script src="./app.js?v=20260719-line-pairing-1"></script>
   </body>
 </html>
