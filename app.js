@@ -1581,7 +1581,8 @@ function handleSenderInput() {
 async function submitOrder(e) {
   if (e) e.preventDefault();
 
-  const isDesktopPairing = Boolean(linePairingToken);
+  const isDesktopPairing =
+    Boolean(linePairingToken) || lineFriendshipState === "pairing";
   if (isDesktopPairing) {
     if (lineFriendshipState !== "friend") {
       alert("請先用手機 LINE 掃描頁面上方的 QR Code 完成連結。");
@@ -1878,6 +1879,8 @@ async function submitOrder(e) {
       LINE_ACCESS_TOKEN_VERIFY_FAILED:
         "LINE access token 驗證失敗，請重新開啟 LINE 訂購頁後再試。",
       LINE_UID_MISMATCH: "LINE 身分資料不一致，請重新開啟 LINE 訂購頁後再試。",
+      LINE_PAIRING_REQUIRED: "請先掃描頁面上方的 QR Code 完成 LINE 綁定。",
+      LINE_PAIRING_EXPIRED: "LINE 綁定已逾時，請重新整理頁面後再掃描一次。",
       PUBLIC_ORDER_REQUIRED_FIELDS: "訂購資料未填完整，請檢查必填欄位。",
       PUBLIC_ORDER_PHONE_INVALID: "電話格式不正確，請重新確認電話號碼。",
       ORDER_AMOUNT_MISMATCH: "訂單金額驗證失敗，請重新整理頁面後再送出。",
