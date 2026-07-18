@@ -710,6 +710,19 @@ function renderMyOrders(focusOrderNo = "") {
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
+  // LINE 導引按鈕必須最先綁定，不能被商品、地址或其他外部套件的
+  // 初始化錯誤連帶中斷。
+  document
+    .getElementById("lineFriendRecheck")
+    ?.addEventListener("click", recheckLineOfficialAccountFriendship);
+  document.getElementById("lineAddFriendLink")?.addEventListener("click", () => {
+    const message = document.getElementById("lineFriendGateMessage");
+    if (message) {
+      message.textContent =
+        "加入完成後請回到本頁，按「我已加入，重新確認」。";
+    }
+  });
+
   // LINE 驗證要立即開始，不要被商品 API 的網路速度卡住。
   initializeLineIdentity()
     .then(() => {
@@ -734,7 +747,10 @@ async function initializeOrderPage() {
   renderPublicProductCatalog();
 
   // 2. 初始化台灣地址選擇器
-  if (document.getElementById("twzipcode_wrap")) {
+  if (
+    document.getElementById("twzipcode_wrap") &&
+    typeof TwCitySelector === "function"
+  ) {
     citySelector = new TwCitySelector({
       el: "#twzipcode_wrap",
       elCounty: ".county",
@@ -765,16 +781,6 @@ async function initializeOrderPage() {
     orderForm.addEventListener("submit", submitOrder);
   }
 
-  document
-    .getElementById("lineFriendRecheck")
-    ?.addEventListener("click", recheckLineOfficialAccountFriendship);
-  document.getElementById("lineAddFriendLink")?.addEventListener("click", () => {
-      const message = document.getElementById("lineFriendGateMessage");
-      if (message) {
-        message.textContent =
-          "加入完成後請回到本頁，按「我已加入，重新確認」。";
-      }
-    });
 }
 
 if (document.readyState === "loading") {
