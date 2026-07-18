@@ -46,7 +46,13 @@
         <button id="lineFriendRecheck" class="line-friend-recheck" type="button">
           我已加入，重新確認
         </button>
-        <small>已是好友的客戶，確認後會直接進入訂購頁。</small>
+        <button
+          id="linePairingCompleteClose"
+          class="line-add-friend-link"
+          type="button"
+          hidden
+        >完成，關閉此頁</button>
+        <small id="lineFriendGateHint">已是好友的客戶，確認後會直接進入訂購頁。</small>
       </div>
     </div>
     <div class="container">
@@ -410,6 +416,6 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260719-line-pairing-2"></script>
+    <script src="./app.js?v=20260719-line-pairing-3"></script>
   </body>
 </html>

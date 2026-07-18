@@ -545,12 +545,16 @@ async function completeLinePairingFromPhone(pairingToken) {
     const title = document.getElementById("lineFriendGateTitle");
     const addButton = document.getElementById("lineAddFriendLink");
     const recheckButton = document.getElementById("lineFriendRecheck");
+    const closeButton = document.getElementById("linePairingCompleteClose");
+    const hint = document.getElementById("lineFriendGateHint");
     if (title) title.textContent = "電腦已成功連結";
     if (recheckButton) recheckButton.hidden = true;
     showLineFriendGate(
-      `已連結${payload.displayName ? "「" + payload.displayName + "」" : "你的 LINE"}，請回到電腦繼續填寫訂單。`,
+      `已連結${payload.displayName ? "「" + payload.displayName + "」" : "你的 LINE"}。請回到電腦繼續填寫訂單，電腦頁面會自動更新。`,
     );
     if (addButton) addButton.hidden = true;
+    if (closeButton) closeButton.hidden = false;
+    if (hint) hint.textContent = "手機頁面不需要再操作，現在可以安全關閉。";
     return true;
   })();
   try {
@@ -558,6 +562,21 @@ async function completeLinePairingFromPhone(pairingToken) {
   } finally {
     linePairingCompletionPromise = null;
   }
+}
+
+function closeLinePairingSuccessPage() {
+  if (
+    typeof liff !== "undefined" &&
+    typeof liff.isInClient === "function" &&
+    liff.isInClient() &&
+    typeof liff.closeWindow === "function"
+  ) {
+    liff.closeWindow();
+    return;
+  }
+  window.close();
+  const message = document.getElementById("lineFriendGateMessage");
+  if (message) message.textContent = "連結已完成，可以直接關閉這個頁面。";
 }
 
 async function initializeLineExperience() {
@@ -899,6 +918,9 @@ async function initializeOrderPage() {
   document
     .getElementById("lineAddFriendLink")
     ?.addEventListener("click", requestLineOfficialAccountFriendship);
+  document
+    .getElementById("linePairingCompleteClose")
+    ?.addEventListener("click", closeLinePairingSuccessPage);
 
   // 商品先用前台備援清單立即顯示，不等待後端與 LINE 驗證。
   renderPublicProductCatalog();
