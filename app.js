@@ -8,6 +8,10 @@ let myOrdersList = [];
 let myOrdersLoaded = false;
 let focusedMyOrderNo = "";
 let shippingBatchesReady = false;
+let lineFriendshipState = "checking";
+let lineFriendshipCheckPromise = null;
+let lineOfficialAccountFriendUrl = "";
+let orderSubmitInProgress = false;
 let orderFormSupplementState = {
   successVisible: false,
   historyVisible: false,
@@ -242,6 +246,169 @@ async function initializeLineIdentity() {
   } finally {
     lineIdentityPromise = null;
   }
+}
+
+function updateOrderSubmitAvailability() {
+  const button =
+    document.getElementById("submitBtn") ||
+    document.querySelector(".submit-btn");
+  if (!button) return;
+  button.disabled =
+    orderSubmitInProgress ||
+    !shippingBatchesReady ||
+    lineFriendshipState !== "friend";
+}
+
+async function fetchLineOfficialAccountFriendUrl() {
+  if (lineOfficialAccountFriendUrl) return lineOfficialAccountFriendUrl;
+  const requestUrl = new URL(GAS_ORDERS_API_URL);
+  requestUrl.searchParams.set("action", "readLineOfficialAccountInfo");
+  requestUrl.searchParams.set("t", String(Date.now()));
+  const response = await fetch(requestUrl.toString(), {
+    method: "GET",
+    cache: "no-store",
+  });
+  const payload = await response.json();
+  if (
+    !response.ok ||
+    payload?.ok !== true ||
+    payload?.action !== "readLineOfficialAccountInfo" ||
+    !String(payload?.friendUrl || "").trim()
+  ) {
+    throw new Error("LINE_OFFICIAL_ACCOUNT_INFO_UNAVAILABLE");
+  }
+  lineOfficialAccountFriendUrl = String(payload.friendUrl).trim();
+  return lineOfficialAccountFriendUrl;
+}
+
+async function checkLineOfficialAccountFriendshipThroughBackend() {
+  const idToken =
+    typeof liff !== "undefined" && typeof liff.getIDToken === "function"
+      ? liff.getIDToken() || ""
+      : "";
+  const accessToken =
+    typeof liff !== "undefined" && typeof liff.getAccessToken === "function"
+      ? liff.getAccessToken() || ""
+      : "";
+  if (!idToken && !accessToken) {
+    throw new Error("LINE_FRIENDSHIP_CHECK_UNAVAILABLE");
+  }
+  const response = await fetch(GAS_ORDERS_API_URL + "?t=" + Date.now(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      action: "checkLineOfficialAccountFriendship",
+      idToken,
+      accessToken,
+    }),
+  });
+  const payload = await response.json();
+  if (
+    !response.ok ||
+    payload?.ok !== true ||
+    payload?.action !== "checkLineOfficialAccountFriendship"
+  ) {
+    throw new Error("LINE_FRIENDSHIP_CHECK_UNAVAILABLE");
+  }
+  return payload.friend === true;
+}
+
+function showLineFriendGate(message) {
+  const gate = document.getElementById("lineFriendGate");
+  const messageElement = document.getElementById("lineFriendGateMessage");
+  const addFriendLink = document.getElementById("lineAddFriendLink");
+  if (messageElement && message) messageElement.textContent = message;
+  if (addFriendLink) {
+    addFriendLink.hidden = !lineOfficialAccountFriendUrl;
+    if (lineOfficialAccountFriendUrl) {
+      addFriendLink.href = lineOfficialAccountFriendUrl;
+    }
+  }
+  if (gate) gate.hidden = false;
+  document.body.classList.add("line-friend-gate-open");
+  updateOrderSubmitAvailability();
+}
+
+function hideLineFriendGate() {
+  const gate = document.getElementById("lineFriendGate");
+  if (gate) gate.hidden = true;
+  document.body.classList.remove("line-friend-gate-open");
+  updateOrderSubmitAvailability();
+}
+
+async function checkLineOfficialAccountFriendship(options = {}) {
+  if (lineFriendshipCheckPromise) return lineFriendshipCheckPromise;
+  const showGate = options.showGate !== false;
+  const checkPromise = (async () => {
+    lineFriendshipState = "checking";
+    updateOrderSubmitAvailability();
+    try {
+      if (
+        typeof liff === "undefined" ||
+        !liff.isLoggedIn()
+      ) {
+        throw new Error("LINE_FRIENDSHIP_CHECK_UNAVAILABLE");
+      }
+      let isFriend = false;
+      if (typeof liff.getFriendship === "function") {
+        try {
+          const friendship = await liff.getFriendship();
+          isFriend = friendship?.friendFlag === true;
+        } catch (liffFriendshipError) {
+          console.warn(
+            "LIFF 好友檢查不可用，改由後端確認:",
+            liffFriendshipError,
+          );
+          isFriend = await checkLineOfficialAccountFriendshipThroughBackend();
+        }
+      } else {
+        isFriend = await checkLineOfficialAccountFriendshipThroughBackend();
+      }
+      if (isFriend) {
+        lineFriendshipState = "friend";
+        hideLineFriendGate();
+        return true;
+      }
+
+      lineFriendshipState = "not_friend";
+      try {
+        await fetchLineOfficialAccountFriendUrl();
+      } catch (friendUrlError) {
+        console.error("取得官方 LINE 加好友網址失敗:", friendUrlError);
+      }
+      if (showGate) {
+        showLineFriendGate(
+          "為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。",
+        );
+      }
+      return false;
+    } catch (error) {
+      console.error("LINE 好友狀態確認失敗:", error);
+      lineFriendshipState = "error";
+      if (showGate) {
+        showLineFriendGate(
+          "目前無法確認官方 LINE 好友狀態，請重新整理頁面後再試。",
+        );
+      }
+      return false;
+    } finally {
+      updateOrderSubmitAvailability();
+    }
+  })();
+  lineFriendshipCheckPromise = checkPromise;
+  try {
+    return await checkPromise;
+  } finally {
+    if (lineFriendshipCheckPromise === checkPromise) {
+      lineFriendshipCheckPromise = null;
+    }
+  }
+}
+
+async function recheckLineOfficialAccountFriendship() {
+  const status = document.getElementById("lineFriendGateMessage");
+  if (status) status.textContent = "正在確認是否已加入官方 LINE…";
+  await checkLineOfficialAccountFriendship({ showGate: true });
 }
 
 function setCustomerNavActive(view) {
@@ -500,7 +667,7 @@ function renderMyOrders(focusOrderNo = "") {
                 ${myOrderDetailRow("黑貓運費", `$${Number(order?.shippingFee || 0).toLocaleString("zh-TW")}`)}
                 ${myOrderDetailRow("最後更新", order?.lastUpdatedAt)}
                 ${myOrderDetailRow("備註", order?.customerNote)}
-              </div>
+               </div>
               <div class="my-order-items"><strong>商品明細</strong>\n${escapeHtml(order?.itemsSummary || "無商品資料")}</div>
             </div>
           </details>
@@ -521,9 +688,13 @@ function renderMyOrders(focusOrderNo = "") {
 async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
   // LINE 驗證要立即開始，不要被商品 API 的網路速度卡住。
-  initializeLineIdentity().catch((error) => {
-    console.error("LIFF 初始化失敗:", error);
-  });
+  initializeLineIdentity()
+    .then(() => checkLineOfficialAccountFriendship({ showGate: true }))
+    .catch((error) => {
+      console.error("LIFF 初始化失敗:", error);
+      lineFriendshipState = "error";
+      showLineFriendGate("LINE 登入或好友狀態確認失敗，請重新整理頁面後再試。");
+    });
 
   const initialViewParams = getInitialCustomerViewParams();
   if (initialViewParams.get("view") === "orders") {
@@ -567,6 +738,26 @@ async function initializeOrderPage() {
   if (orderForm) {
     orderForm.addEventListener("submit", submitOrder);
   }
+
+  document
+    .getElementById("lineFriendRecheck")
+    ?.addEventListener("click", recheckLineOfficialAccountFriendship);
+  document.getElementById("lineAddFriendLink")?.addEventListener("click", () => {
+    const message = document.getElementById("lineFriendGateMessage");
+    if (message) {
+      message.textContent = "加入完成後請回到本頁，系統會自動重新確認。";
+    }
+  });
+  window.addEventListener("focus", () => {
+    if (lineFriendshipState === "not_friend") {
+      checkLineOfficialAccountFriendship({ showGate: true });
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && lineFriendshipState === "not_friend") {
+      checkLineOfficialAccountFriendship({ showGate: true });
+    }
+  });
 }
 
 if (document.readyState === "loading") {
@@ -1049,7 +1240,7 @@ async function fetchShippingBatches() {
 
     select.disabled = false;
     shippingBatchesReady = true;
-    if (submitButton) submitButton.disabled = false;
+    updateOrderSubmitAvailability();
     if (status) {
       status.textContent = "請選擇一個希望寄出批次。";
       status.style.color = "";
@@ -1190,6 +1381,13 @@ function handleSenderInput() {
 // 送出訂單給 GAS 後端
 async function submitOrder(e) {
   if (e) e.preventDefault();
+
+  if (
+    lineFriendshipState !== "friend" &&
+    !(await checkLineOfficialAccountFriendship({ showGate: true }))
+  ) {
+    return;
+  }
 
   let lineIdToken =
     typeof liff !== "undefined" && typeof liff.getIDToken === "function"
@@ -1348,7 +1546,8 @@ async function submitOrder(e) {
 
   if (btn) {
     btn.innerText = "正在送出訂單...";
-    btn.disabled = true;
+    orderSubmitInProgress = true;
+    updateOrderSubmitAvailability();
   }
 
   try {
@@ -1479,7 +1678,21 @@ async function submitOrder(e) {
     };
     if (btn) {
       btn.innerText = originalBtnText;
-      btn.disabled = false;
+      orderSubmitInProgress = false;
+      updateOrderSubmitAvailability();
+    }
+
+    if (message === "LINE_OFFICIAL_ACCOUNT_FRIEND_REQUIRED") {
+      lineFriendshipState = "not_friend";
+      try {
+        await fetchLineOfficialAccountFriendUrl();
+      } catch (friendUrlError) {
+        console.error("取得官方 LINE 加好友網址失敗:", friendUrlError);
+      }
+      showLineFriendGate(
+        "為了確保訂購小卡能送達，請先加入三合院農園官方 LINE。",
+      );
+      return;
     }
 
     if (await handleStockInsufficientSubmitError(message)) {
@@ -1513,7 +1726,8 @@ function resetFormForNext() {
     document.querySelector(".submit-btn");
   if (btn) {
     btn.innerText = "送出訂單";
-    btn.disabled = false;
+    orderSubmitInProgress = false;
+    updateOrderSubmitAvailability();
   }
 
   if (document.getElementById("successBlock"))
