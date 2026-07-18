@@ -74,6 +74,10 @@ body.line-friend-gate-open {
   font-weight: 700;
   text-align: center;
 }
+.line-add-friend-link[hidden],
+.line-friend-recheck[hidden] {
+  display: none;
+}
 .line-add-friend-link {
   border: 0;
   padding: 12px 18px;
