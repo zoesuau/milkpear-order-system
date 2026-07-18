@@ -11,6 +11,7 @@ let shippingBatchesReady = false;
 let lineFriendshipState = "checking";
 let lineFriendshipCheckPromise = null;
 let lineOfficialAccountFriendUrl = "";
+let lineLoginRedirectInProgress = false;
 let orderSubmitInProgress = false;
 let orderFormSupplementState = {
   successVisible: false,
@@ -216,9 +217,16 @@ async function initializeLineIdentity() {
     console.log("LIFF 初始化成功！");
 
     if (!liff.isLoggedIn()) {
-      liff.login({ redirectUri: window.location.href });
+      lineLoginRedirectInProgress = true;
+      const redirectUrl = new URL(window.location.href);
+      ["code", "state", "friendship_status_changed"].forEach((key) =>
+        redirectUrl.searchParams.delete(key),
+      );
+      liff.login({ redirectUri: redirectUrl.toString() });
       return "";
     }
+
+    lineLoginRedirectInProgress = false;
 
     // ID token 內的 sub 就是 LINE UID，不必等 getProfile 請求才能送單。
     if (typeof liff.getDecodedIDToken === "function") {
@@ -407,8 +415,22 @@ async function checkLineOfficialAccountFriendship(options = {}) {
 
 async function recheckLineOfficialAccountFriendship() {
   const status = document.getElementById("lineFriendGateMessage");
+  const button = document.getElementById("lineFriendRecheck");
   if (status) status.textContent = "正在確認是否已加入官方 LINE…";
-  await checkLineOfficialAccountFriendship({ showGate: true });
+  if (button) button.disabled = true;
+  try {
+    await initializeLineIdentity();
+    if (lineLoginRedirectInProgress) return;
+    await checkLineOfficialAccountFriendship({ showGate: true });
+  } catch (error) {
+    console.error("重新確認 LINE 好友狀態失敗:", error);
+    lineFriendshipState = "error";
+    showLineFriendGate(
+      "目前無法確認官方 LINE 好友狀態，請重新開啟訂購連結後再試。",
+    );
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function setCustomerNavActive(view) {
@@ -528,6 +550,7 @@ async function loadMyOrders(options = {}) {
 
   try {
     await initializeLineIdentity();
+    if (lineLoginRedirectInProgress) return;
     const tokens = getLineAuthTokens();
     if (!tokens.idToken && !tokens.accessToken) {
       throw new Error("LINE_AUTH_REQUIRED");
@@ -689,7 +712,10 @@ async function initializeOrderPage() {
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
   // LINE 驗證要立即開始，不要被商品 API 的網路速度卡住。
   initializeLineIdentity()
-    .then(() => checkLineOfficialAccountFriendship({ showGate: true }))
+    .then(() => {
+      if (lineLoginRedirectInProgress) return;
+      return checkLineOfficialAccountFriendship({ showGate: true });
+    })
     .catch((error) => {
       console.error("LIFF 初始化失敗:", error);
       lineFriendshipState = "error";
@@ -743,21 +769,12 @@ async function initializeOrderPage() {
     .getElementById("lineFriendRecheck")
     ?.addEventListener("click", recheckLineOfficialAccountFriendship);
   document.getElementById("lineAddFriendLink")?.addEventListener("click", () => {
-    const message = document.getElementById("lineFriendGateMessage");
-    if (message) {
-      message.textContent = "加入完成後請回到本頁，系統會自動重新確認。";
-    }
-  });
-  window.addEventListener("focus", () => {
-    if (lineFriendshipState === "not_friend") {
-      checkLineOfficialAccountFriendship({ showGate: true });
-    }
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && lineFriendshipState === "not_friend") {
-      checkLineOfficialAccountFriendship({ showGate: true });
-    }
-  });
+      const message = document.getElementById("lineFriendGateMessage");
+      if (message) {
+        message.textContent =
+          "加入完成後請回到本頁，按「我已加入，重新確認」。";
+      }
+    });
 }
 
 if (document.readyState === "loading") {
