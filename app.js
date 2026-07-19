@@ -579,12 +579,25 @@ function closeLinePairingSuccessPage() {
   if (message) message.textContent = "連結已完成，可以直接關閉這個頁面。";
 }
 
+function isMobileDeviceBrowser() {
+  if (navigator.userAgentData?.mobile === true) return true;
+
+  const userAgent = String(navigator.userAgent || "");
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)) return true;
+
+  // iPadOS 13 之後可能使用桌面版 Safari 的 Macintosh user agent。
+  return /Macintosh/i.test(userAgent) && Number(navigator.maxTouchPoints) > 1;
+}
+
 async function initializeLineExperience() {
   await initializeLiffSdk();
   const pairingToken = getPairingTokenFromUrl();
   const inLineClient = typeof liff.isInClient === "function" && liff.isInClient();
+  const onMobileDevice = isMobileDeviceBrowser();
 
-  if (!inLineClient && !pairingToken) {
+  // OA 對話中的連結有時會由 LINE 內建網頁視窗開啟，此時
+  // liff.isInClient() 會是 false，但它仍然是手機，不應顯示桌機 QR Code。
+  if (!inLineClient && !onMobileDevice && !pairingToken) {
     lineFriendshipState = "pairing";
     await createDesktopLinePairing();
     return;
