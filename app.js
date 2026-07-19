@@ -4,6 +4,7 @@ let isSyncing = false;
 let currentUserId = ""; // 全域儲存 LINE UID
 let currentUserDisplayName = ""; // 全域儲存 LINE 顯示名稱
 let lineIdentityPromise = null;
+let lineLiffInitializationPromise = null;
 let myOrdersList = [];
 let myOrdersLoaded = false;
 let focusedMyOrderNo = "";
@@ -28,6 +29,7 @@ let orderFormSupplementState = {
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
 const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
+const LIFF_INVALID_GRANT_RECOVERY_KEY = "milkpearLiffInvalidGrantRecovered";
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
@@ -284,9 +286,64 @@ function saveLineIdentity(userId, displayName = "") {
 
 async function initializeLiffSdk() {
   if (lineLiffInitialized) return;
+  if (lineLiffInitializationPromise) return lineLiffInitializationPromise;
   if (typeof liff === "undefined") throw new Error("LIFF_SDK_UNAVAILABLE");
-  await liff.init({ liffId: LINE_LIFF_ID });
-  lineLiffInitialized = true;
+
+  const initializationPromise = (async () => {
+    try {
+      await liff.init({ liffId: LINE_LIFF_ID });
+      lineLiffInitialized = true;
+      try {
+        sessionStorage.removeItem(LIFF_INVALID_GRANT_RECOVERY_KEY);
+      } catch (storageError) {
+        console.warn("無法清除 LIFF 恢復旗標：", storageError);
+      }
+    } catch (error) {
+      if (recoverFromLiffInvalidGrant(error)) {
+        // 等待頁面跳回乾淨的 LIFF URL，避免舊頁繼續呼叫尚未初始化的 SDK。
+        await new Promise(() => {});
+      }
+      throw error;
+    }
+  })();
+
+  lineLiffInitializationPromise = initializationPromise;
+  try {
+    await initializationPromise;
+  } finally {
+    if (lineLiffInitializationPromise === initializationPromise) {
+      lineLiffInitializationPromise = null;
+    }
+  }
+}
+
+function recoverFromLiffInvalidGrant(error) {
+  const errorText = `${error?.code || ""} ${error?.message || error || ""}`
+    .toLowerCase()
+    .trim();
+  if (!errorText.includes("invalid_grant")) return false;
+
+  try {
+    if (sessionStorage.getItem(LIFF_INVALID_GRANT_RECOVERY_KEY) === "1") {
+      return false;
+    }
+    sessionStorage.setItem(LIFF_INVALID_GRANT_RECOVERY_KEY, "1");
+  } catch (storageError) {
+    console.warn("無法設定 LIFF 恢復旗標：", storageError);
+  }
+
+  const currentParams = getInitialCustomerViewParams();
+  const recoveryUrl = new URL(LINE_LIFF_URL);
+  ["view", "order", "src", "pair"].forEach((key) => {
+    const value = String(currentParams.get(key) || "").trim();
+    if (value) recoveryUrl.searchParams.set(key, value);
+  });
+  lineLoginRedirectInProgress = true;
+  recordOrderFunnelEvent("liff_error", {
+    errorCode: "invalid_grant_recovering",
+  });
+  window.location.replace(recoveryUrl.toString());
+  return true;
 }
 
 async function initializeLineIdentity() {
