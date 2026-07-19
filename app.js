@@ -17,6 +17,8 @@ let lineLiffInitialized = false;
 let linePairingToken = "";
 let linePairingPollTimer = null;
 let linePairingCompletionPromise = null;
+let orderFunnelSessionId = "";
+let orderFunnelProductSelected = false;
 const LINE_LIFF_ID = "2010333281-Ra5txFF3";
 const LINE_LIFF_URL = `https://liff.line.me/${LINE_LIFF_ID}`;
 let orderFormSupplementState = {
@@ -25,6 +27,7 @@ let orderFormSupplementState = {
 };
 const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
+const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
@@ -200,6 +203,73 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   },
 ];
 let PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
+
+function getOrderFunnelSessionId() {
+  if (orderFunnelSessionId) return orderFunnelSessionId;
+  try {
+    orderFunnelSessionId = sessionStorage.getItem(
+      ORDER_FUNNEL_SESSION_STORAGE_KEY,
+    );
+  } catch (error) {
+    console.warn("無法讀取訂購漏斗工作階段：", error);
+  }
+  if (!orderFunnelSessionId) {
+    orderFunnelSessionId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `session-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    try {
+      sessionStorage.setItem(
+        ORDER_FUNNEL_SESSION_STORAGE_KEY,
+        orderFunnelSessionId,
+      );
+    } catch (error) {
+      console.warn("無法儲存訂購漏斗工作階段：", error);
+    }
+  }
+  return orderFunnelSessionId;
+}
+
+function getOrderFunnelSource() {
+  return String(getInitialCustomerViewParams().get("src") || "direct").trim();
+}
+
+function getOrderFunnelContextType() {
+  try {
+    return String(liff.getContext?.()?.type || "unknown");
+  } catch (error) {
+    return "unknown";
+  }
+}
+
+function recordOrderFunnelEvent(eventName, details = {}) {
+  const payload = {
+    action: "logOrderFunnelEvent",
+    sessionId: getOrderFunnelSessionId(),
+    eventName: String(eventName || "").trim(),
+    source: getOrderFunnelSource(),
+    view: String(getInitialCustomerViewParams().get("view") || "form"),
+    pagePath: window.location.pathname,
+    contextType: getOrderFunnelContextType(),
+    inLineClient:
+      typeof liff !== "undefined" &&
+      typeof liff.isInClient === "function" &&
+      liff.isInClient(),
+    mobile: isMobileDeviceBrowser(),
+    detail: String(details.detail || "").trim(),
+    errorCode: String(details.errorCode || "").trim(),
+    clientTime: new Date().toISOString(),
+  };
+
+  fetch(GAS_ORDERS_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+    keepalive: true,
+  }).catch((error) => {
+    console.warn("訂購漏斗事件寫入失敗：", error);
+  });
+}
 
 function saveLineIdentity(userId, displayName = "") {
   const normalizedUserId = String(userId || "").trim();
@@ -594,6 +664,13 @@ async function initializeLineExperience() {
   const pairingToken = getPairingTokenFromUrl();
   const inLineClient = typeof liff.isInClient === "function" && liff.isInClient();
   const onMobileDevice = isMobileDeviceBrowser();
+  recordOrderFunnelEvent("page_open", {
+    detail: inLineClient
+      ? "line_client"
+      : onMobileDevice
+        ? "mobile_browser"
+        : "desktop_browser",
+  });
 
   // OA 對話中的連結有時會由 LINE 內建網頁視窗開啟，此時
   // liff.isInClient() 會是 false，但它仍然是手機，不應顯示桌機 QR Code。
@@ -942,6 +1019,9 @@ async function initializeOrderPage() {
   initializeLineExperience()
     .catch((error) => {
       console.error("LINE 使用情境初始化失敗:", error);
+      recordOrderFunnelEvent("liff_error", {
+        errorCode: error?.code || error?.message || "LIFF_INIT_FAILED",
+      });
       lineFriendshipState = "error";
       const status = document.getElementById("linePairingStatus");
       if (status) status.textContent = "LINE 綁定服務暫時無法使用，請稍後重新整理。";
@@ -990,6 +1070,11 @@ async function initializeOrderPage() {
   const orderForm = document.getElementById("orderForm");
   if (orderForm) {
     orderForm.addEventListener("submit", submitOrder);
+    orderForm.addEventListener(
+      "input",
+      () => recordOrderFunnelEvent("form_started"),
+      { once: true },
+    );
   }
 
 }
@@ -1032,8 +1117,14 @@ async function fetchPublicProductCatalog() {
 
     PUBLIC_PRODUCT_CATALOG = products;
     applyPublicSiteSettings(payload.siteSettings);
+    recordOrderFunnelEvent("catalog_ready", {
+      detail: String(products.filter((product) => product.active).length),
+    });
   } catch (error) {
     console.warn("商品清單讀取失敗，改用前台備援商品：", error);
+    recordOrderFunnelEvent("catalog_fallback", {
+      errorCode: error?.message || "PRODUCT_CATALOG_UNAVAILABLE",
+    });
     PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
   }
 }
@@ -1474,12 +1565,18 @@ async function fetchShippingBatches() {
 
     select.disabled = false;
     shippingBatchesReady = true;
+    recordOrderFunnelEvent("shipping_ready", {
+      detail: String(batches.length),
+    });
     updateOrderSubmitAvailability();
     if (status) {
       status.textContent = "請選擇一個希望寄出批次。";
       status.style.color = "";
     }
   } catch (error) {
+    recordOrderFunnelEvent("shipping_error", {
+      errorCode: error?.message || "SHIPPING_BATCHES_UNAVAILABLE",
+    });
     if (select) {
       select.disabled = true;
       select.innerHTML = '<option value="">批次讀取失敗</option>';
@@ -1510,6 +1607,10 @@ function stepQty(button, step) {
 // 雙向同步桌機與手機版數量
 function syncAndCalculate(id, val) {
   let intVal = parseInt(val) || 0;
+  if (intVal > 0 && !orderFunnelProductSelected) {
+    orderFunnelProductSelected = true;
+    recordOrderFunnelEvent("product_selected", { detail: String(id || "") });
+  }
   const product = getPublicProductById(id);
   if (product && hasLimitedStock(product) && intVal > product.stock) {
     intVal = product.stock;
@@ -1615,11 +1716,15 @@ function handleSenderInput() {
 // 送出訂單給 GAS 後端
 async function submitOrder(e) {
   if (e) e.preventDefault();
+  recordOrderFunnelEvent("submit_clicked");
 
   const isDesktopPairing =
     Boolean(linePairingToken) || lineFriendshipState === "pairing";
   if (isDesktopPairing) {
     if (lineFriendshipState !== "friend") {
+      recordOrderFunnelEvent("validation_blocked", {
+        detail: "desktop_pairing_required",
+      });
       alert("請先用手機 LINE 掃描頁面上方的 QR Code 完成連結。");
       document.getElementById("linePairingPanel")?.scrollIntoView({
         behavior: "smooth",
@@ -1631,6 +1736,9 @@ async function submitOrder(e) {
     lineFriendshipState !== "friend" &&
     !(await checkLineOfficialAccountFriendship({ showGate: true }))
   ) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "line_friendship_required",
+    });
     return;
   }
 
@@ -1662,6 +1770,9 @@ async function submitOrder(e) {
   }
 
   if (!isDesktopPairing && !lineIdToken && !lineAccessToken) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "line_identity_missing",
+    });
     alert("錯誤：尚未成功取得 LINE 身分驗證，請重新開啟訂購頁後再送出。");
     return;
   }
@@ -1675,6 +1786,9 @@ async function submitOrder(e) {
   const shipping = document.getElementById("shippingFee").innerText;
 
   if (total === "0" || boxes === "0") {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "product_required",
+    });
     alert("請至少選擇一盒商品！");
     return;
   }
@@ -1720,16 +1834,25 @@ async function submitOrder(e) {
     !district ||
     !detailAddr
   ) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "required_fields_missing",
+    });
     alert("請完整填寫收件資訊、完整宅配地址與寄件人資訊！");
     return;
   }
 
   if (!shippingBatchesReady) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "shipping_not_ready",
+    });
     alert("寄出批次尚未載入完成，請稍後再試。");
     return;
   }
 
   if (!requestedShippingBatchId) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "shipping_batch_required",
+    });
     alert("請選擇希望寄出批次！");
     return;
   }
@@ -1758,6 +1881,9 @@ async function submitOrder(e) {
   });
 
   if (twoPieceBoxes > 0 && twoPieceBoxes < 6) {
+    recordOrderFunnelEvent("validation_blocked", {
+      detail: "two_piece_minimum",
+    });
     alert("蔗香梨兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。");
     return;
   }
@@ -1831,6 +1957,9 @@ async function submitOrder(e) {
     ).trim();
     data.orderNo = String(result.orderNo || "").trim();
     myOrdersLoaded = false;
+    recordOrderFunnelEvent("submit_success", {
+      detail: data.orderNo ? "order_created" : "success_without_order_no",
+    });
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
     if (document.getElementById("successName"))
@@ -1904,6 +2033,9 @@ async function submitOrder(e) {
   } catch (error) {
     console.error(error);
     const message = String(error?.message || "").trim();
+    recordOrderFunnelEvent("submit_error", {
+      errorCode: message || "ORDER_SUBMIT_FAILED",
+    });
     const friendlyMessages = {
       LINE_ID_TOKEN_MISSING:
         "LINE 身分驗證缺少 idToken，請確認前台 app.js 已更新，並重新開啟 LINE 訂購頁。",
