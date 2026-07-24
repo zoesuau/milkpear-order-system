@@ -20,6 +20,9 @@ let linePairingPollTimer = null;
 let linePairingCompletionPromise = null;
 let orderFunnelSessionId = "";
 let orderFunnelProductSelected = false;
+let orderDraftSaveTimer = null;
+let orderDraftRestoring = false;
+let cachedOrderDraft = null;
 const LINE_LIFF_ID = "2010333281-Ra5txFF3";
 const LINE_LIFF_URL = `https://liff.line.me/${LINE_LIFF_ID}`;
 let orderFormSupplementState = {
@@ -30,6 +33,8 @@ const GAS_ORDERS_API_URL =
   "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
 const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
 const LIFF_INVALID_GRANT_RECOVERY_KEY = "milkpearLiffInvalidGrantRecovered";
+const ORDER_DRAFT_STORAGE_KEY = "milkpearOrderDraftV1";
+const ORDER_DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
@@ -485,10 +490,7 @@ async function checkLineOfficialAccountFriendship(options = {}) {
     lineFriendshipState = "checking";
     updateOrderSubmitAvailability();
     try {
-      if (
-        typeof liff === "undefined" ||
-        !liff.isLoggedIn()
-      ) {
+      if (typeof liff === "undefined" || !liff.isLoggedIn()) {
         throw new Error("LINE_FRIENDSHIP_CHECK_UNAVAILABLE");
       }
       let isFriend = false;
@@ -779,8 +781,12 @@ async function recheckLineOfficialAccountFriendship() {
 
 function setCustomerNavActive(view) {
   const isMyOrders = view === "orders";
-  document.getElementById("orderFormTab")?.classList.toggle("active", !isMyOrders);
-  document.getElementById("myOrdersTab")?.classList.toggle("active", isMyOrders);
+  document
+    .getElementById("orderFormTab")
+    ?.classList.toggle("active", !isMyOrders);
+  document
+    .getElementById("myOrdersTab")
+    ?.classList.toggle("active", isMyOrders);
 }
 
 function updateCustomerViewUrl(view, orderNo = "") {
@@ -835,7 +841,10 @@ function showOrderFormView(options = {}) {
   }
   setCustomerNavActive("form");
   if (options.updateUrl !== false) updateCustomerViewUrl("form");
-  window.scrollTo({ top: 0, behavior: options.smooth === false ? "auto" : "smooth" });
+  window.scrollTo({
+    top: 0,
+    behavior: options.smooth === false ? "auto" : "smooth",
+  });
 }
 
 function openMyOrders(orderNo = "", options = {}) {
@@ -859,8 +868,12 @@ function openMyOrders(orderNo = "", options = {}) {
   if (successBlock) successBlock.style.display = "none";
   if (localHistorySection) localHistorySection.style.display = "none";
   setCustomerNavActive("orders");
-  if (options.updateUrl !== false) updateCustomerViewUrl("orders", focusedMyOrderNo);
-  window.scrollTo({ top: 0, behavior: options.smooth === false ? "auto" : "smooth" });
+  if (options.updateUrl !== false)
+    updateCustomerViewUrl("orders", focusedMyOrderNo);
+  window.scrollTo({
+    top: 0,
+    behavior: options.smooth === false ? "auto" : "smooth",
+  });
   loadMyOrders({ focusOrderNo: focusedMyOrderNo });
 }
 
@@ -879,7 +892,9 @@ function getLineAuthTokens() {
 
 async function loadMyOrders(options = {}) {
   const force = options.force === true;
-  const focusOrderNo = String(options.focusOrderNo || focusedMyOrderNo || "").trim();
+  const focusOrderNo = String(
+    options.focusOrderNo || focusedMyOrderNo || "",
+  ).trim();
   const status = document.getElementById("myOrdersStatus");
   const list = document.getElementById("myOrdersList");
   if (!list) return;
@@ -913,7 +928,11 @@ async function loadMyOrders(options = {}) {
       }),
     });
     const payload = await response.json();
-    if (!response.ok || payload?.ok !== true || !Array.isArray(payload.orders)) {
+    if (
+      !response.ok ||
+      payload?.ok !== true ||
+      !Array.isArray(payload.orders)
+    ) {
       throw new Error(payload?.message || "MY_ORDERS_UNAVAILABLE");
     }
 
@@ -935,10 +954,14 @@ async function loadMyOrders(options = {}) {
 function getMyOrderStatusMeta(order) {
   const rawStatus = String(order?.orderStatus || "").trim();
   const cancelled = rawStatus.includes("取消");
-  const shipped = !cancelled && (rawStatus.includes("寄出") || Boolean(order?.actualShippingDate));
+  const shipped =
+    !cancelled &&
+    (rawStatus.includes("寄出") || Boolean(order?.actualShippingDate));
   const scheduled =
     !cancelled &&
-    (shipped || rawStatus.includes("安排出貨") || Boolean(order?.expectedShippingDate));
+    (shipped ||
+      rawStatus.includes("安排出貨") ||
+      Boolean(order?.expectedShippingDate));
 
   let label = rawStatus || "訂單處理中";
   if (rawStatus === "待確認") label = "訂單處理中";
@@ -961,7 +984,9 @@ function getMyOrderPaymentLabel(order) {
   if (state === "bank_paid_cod_balance") {
     return "原款已匯款＋追加款貨到付款";
   }
-  return String(order?.paymentStatus || order?.paymentMethod || "待確認").trim();
+  return String(
+    order?.paymentStatus || order?.paymentMethod || "待確認",
+  ).trim();
 }
 
 function myOrderDetailRow(label, value) {
@@ -1107,6 +1132,8 @@ async function initializeOrderPage() {
     });
   }
 
+  restoreOrderDraftFields();
+
   // 3. 讀取可選的希望寄出批次
   fetchShippingBatches();
 
@@ -1127,6 +1154,8 @@ async function initializeOrderPage() {
   const orderForm = document.getElementById("orderForm");
   if (orderForm) {
     orderForm.addEventListener("submit", submitOrder);
+    orderForm.addEventListener("input", scheduleOrderDraftSave);
+    orderForm.addEventListener("change", scheduleOrderDraftSave);
     orderForm.addEventListener(
       "input",
       () => recordOrderFunnelEvent("form_started"),
@@ -1232,6 +1261,7 @@ function renderPublicProductCatalog() {
   const tabsRoot = document.getElementById("productVarietyTabs");
   if (!sectionRoot || !tabsRoot) return;
 
+  const selectedBeforeRender = getSelectedQuantitiesByCode();
   const products = getActivePublicProducts();
   const groups = groupProductsByVariety(products);
   tabsRoot.innerHTML = "";
@@ -1242,6 +1272,12 @@ function renderPublicProductCatalog() {
       兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
     </p>
   `;
+  const draftSelected = getCachedOrderDraft()?.productQuantities || {};
+  applySelectedQuantitiesByCode(
+    Object.keys(selectedBeforeRender).length
+      ? selectedBeforeRender
+      : draftSelected,
+  );
   calculate();
 }
 
@@ -1622,6 +1658,7 @@ async function fetchShippingBatches() {
 
     select.disabled = false;
     shippingBatchesReady = true;
+    restoreOrderDraftShippingBatch();
     recordOrderFunnelEvent("shipping_ready", {
       detail: String(batches.length),
     });
@@ -1768,6 +1805,144 @@ function handleSenderInput() {
   if (!isSyncing && document.getElementById("sameAsReceiver")) {
     document.getElementById("sameAsReceiver").checked = false;
   }
+}
+
+function getCachedOrderDraft() {
+  if (cachedOrderDraft) return cachedOrderDraft;
+  try {
+    const rawDraft = localStorage.getItem(ORDER_DRAFT_STORAGE_KEY);
+    if (!rawDraft) return null;
+    const draft = JSON.parse(rawDraft);
+    const savedAt = Number(draft?.savedAt) || 0;
+    if (!savedAt || Date.now() - savedAt > ORDER_DRAFT_MAX_AGE_MS) {
+      localStorage.removeItem(ORDER_DRAFT_STORAGE_KEY);
+      return null;
+    }
+    cachedOrderDraft = draft;
+    return cachedOrderDraft;
+  } catch (error) {
+    console.warn("無法讀取訂購草稿：", error);
+    return null;
+  }
+}
+
+function getOrderDraftFieldValue(id) {
+  return String(document.getElementById(id)?.value || "");
+}
+
+function buildOrderDraft() {
+  return {
+    savedAt: Date.now(),
+    customerName: getOrderDraftFieldValue("customerName"),
+    customerPhone: getOrderDraftFieldValue("customerPhone"),
+    county: String(
+      document.querySelector("#twzipcode_wrap .county")?.value || "",
+    ),
+    district: String(
+      document.querySelector("#twzipcode_wrap .district")?.value || "",
+    ),
+    addressDetail: getOrderDraftFieldValue("address_detail"),
+    sameAsReceiver:
+      document.getElementById("sameAsReceiver")?.checked === true,
+    senderName: getOrderDraftFieldValue("senderName"),
+    senderPhone: getOrderDraftFieldValue("senderPhone"),
+    paymentMethod: getOrderDraftFieldValue("paymentMethod"),
+    requestedShippingBatchId: getOrderDraftFieldValue(
+      "requestedShippingBatchId",
+    ),
+    note: getOrderDraftFieldValue("note"),
+    productQuantities: getSelectedQuantitiesByCode(),
+  };
+}
+
+function saveOrderDraft() {
+  if (orderDraftRestoring) return;
+  try {
+    cachedOrderDraft = buildOrderDraft();
+    localStorage.setItem(
+      ORDER_DRAFT_STORAGE_KEY,
+      JSON.stringify(cachedOrderDraft),
+    );
+  } catch (error) {
+    console.warn("無法暫存訂購草稿：", error);
+  }
+}
+
+function scheduleOrderDraftSave() {
+  if (orderDraftRestoring) return;
+  window.clearTimeout(orderDraftSaveTimer);
+  orderDraftSaveTimer = window.setTimeout(saveOrderDraft, 250);
+}
+
+function clearOrderDraft() {
+  window.clearTimeout(orderDraftSaveTimer);
+  orderDraftSaveTimer = null;
+  cachedOrderDraft = null;
+  try {
+    localStorage.removeItem(ORDER_DRAFT_STORAGE_KEY);
+  } catch (error) {
+    console.warn("無法清除訂購草稿：", error);
+  }
+}
+
+function setOrderDraftFieldValue(id, value) {
+  const element = document.getElementById(id);
+  if (element && value !== undefined && value !== null) {
+    element.value = String(value);
+  }
+}
+
+function restoreOrderDraftAddress(draft) {
+  const countySelect = document.querySelector("#twzipcode_wrap .county");
+  const districtSelect = document.querySelector("#twzipcode_wrap .district");
+  if (!countySelect || !districtSelect || !draft.county) return;
+
+  countySelect.value = draft.county;
+  countySelect.dispatchEvent(new Event("change", { bubbles: true }));
+  window.setTimeout(() => {
+    orderDraftRestoring = true;
+    districtSelect.value = String(draft.district || "");
+    districtSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    orderDraftRestoring = false;
+    calculate();
+  }, 0);
+}
+
+function restoreOrderDraftFields() {
+  const draft = getCachedOrderDraft();
+  if (!draft) return;
+
+  orderDraftRestoring = true;
+  setOrderDraftFieldValue("customerName", draft.customerName);
+  setOrderDraftFieldValue("customerPhone", draft.customerPhone);
+  setOrderDraftFieldValue("address_detail", draft.addressDetail);
+  setOrderDraftFieldValue("senderName", draft.senderName);
+  setOrderDraftFieldValue("senderPhone", draft.senderPhone);
+  setOrderDraftFieldValue("paymentMethod", draft.paymentMethod);
+  setOrderDraftFieldValue("note", draft.note);
+  const sameAsReceiver = document.getElementById("sameAsReceiver");
+  if (sameAsReceiver) sameAsReceiver.checked = draft.sameAsReceiver === true;
+  restoreOrderDraftAddress(draft);
+  applySelectedQuantitiesByCode(draft.productQuantities || {});
+  handlePaymentChange();
+  calculate();
+  orderDraftRestoring = false;
+}
+
+function restoreOrderDraftShippingBatch() {
+  const draft = getCachedOrderDraft();
+  const select = document.getElementById("requestedShippingBatchId");
+  const batchId = String(draft?.requestedShippingBatchId || "");
+  if (
+    !select ||
+    !batchId ||
+    ![...select.options].some((option) => option.value === batchId)
+  ) {
+    return;
+  }
+  orderDraftRestoring = true;
+  select.value = batchId;
+  orderDraftRestoring = false;
 }
 
 // 送出訂單給 GAS 後端
@@ -2017,6 +2192,7 @@ async function submitOrder(e) {
     recordOrderFunnelEvent("submit_success", {
       detail: data.orderNo ? "order_created" : "success_without_order_no",
     });
+    clearOrderDraft();
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
     if (document.getElementById("successName"))
@@ -2142,6 +2318,7 @@ async function submitOrder(e) {
 
 // 重設下一單的表單內容
 function resetFormForNext() {
+  clearOrderDraft();
   const orderForm = document.getElementById("orderForm");
   if (orderForm) orderForm.reset();
   if (citySelector) citySelector.reset();
