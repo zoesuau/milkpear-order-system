@@ -35,6 +35,7 @@ const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
 const LIFF_INVALID_GRANT_RECOVERY_KEY = "milkpearLiffInvalidGrantRecovered";
 const ORDER_DRAFT_STORAGE_KEY = "milkpearOrderDraftV1";
 const ORDER_DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+const LOW_STOCK_DISPLAY_THRESHOLD = 50;
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
   {
@@ -209,7 +210,8 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
     sortOrder: 14,
   },
 ];
-let PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
+let PUBLIC_PRODUCT_CATALOG = [];
+let publicProductCatalogState = "loading";
 
 function getOrderFunnelSessionId() {
   if (orderFunnelSessionId) return orderFunnelSessionId;
@@ -406,6 +408,8 @@ function updateOrderSubmitAvailability() {
   if (!button) return;
   button.disabled =
     orderSubmitInProgress ||
+    publicProductCatalogState !== "ready" ||
+    !isTwoPieceSelectionComplete() ||
     !shippingBatchesReady;
 }
 
@@ -1094,7 +1098,7 @@ async function initializeOrderPage() {
     .getElementById("linePairingCompleteClose")
     ?.addEventListener("click", closeLinePairingSuccessPage);
 
-  // 商品先用前台備援清單立即顯示，不等待後端與 LINE 驗證。
+  // 正式商品載入前只顯示讀取狀態，避免舊備援庫存被誤認為即時資料。
   renderPublicProductCatalog();
 
   // LINE 內直接取得身分；外部瀏覽器改走手機掃碼綁定。
@@ -1178,6 +1182,8 @@ function getActivePublicProducts() {
 }
 
 async function fetchPublicProductCatalog() {
+  publicProductCatalogState = "loading";
+  updateOrderSubmitAvailability();
   try {
     const requestUrl = new URL(GAS_ORDERS_API_URL);
     requestUrl.searchParams.set("action", "readPublicProductCatalog");
@@ -1202,17 +1208,32 @@ async function fetchPublicProductCatalog() {
     if (!products.length) throw new Error("PRODUCT_CATALOG_EMPTY");
 
     PUBLIC_PRODUCT_CATALOG = products;
+    publicProductCatalogState = "ready";
     applyPublicSiteSettings(payload.siteSettings);
     recordOrderFunnelEvent("catalog_ready", {
       detail: String(products.filter((product) => product.active).length),
     });
+    return true;
   } catch (error) {
-    console.warn("商品清單讀取失敗，改用前台備援商品：", error);
+    console.warn("商品清單讀取失敗，停止顯示及訂購商品：", error);
     recordOrderFunnelEvent("catalog_fallback", {
       errorCode: error?.message || "PRODUCT_CATALOG_UNAVAILABLE",
     });
-    PUBLIC_PRODUCT_CATALOG = [...PUBLIC_PRODUCT_CATALOG_FALLBACK];
+    PUBLIC_PRODUCT_CATALOG = [];
+    publicProductCatalogState = "error";
+    return false;
+  } finally {
+    updateOrderSubmitAvailability();
   }
+}
+
+async function retryPublicProductCatalog() {
+  if (publicProductCatalogState === "loading") return;
+  PUBLIC_PRODUCT_CATALOG = [];
+  publicProductCatalogState = "loading";
+  renderPublicProductCatalog();
+  await fetchPublicProductCatalog();
+  renderPublicProductCatalog();
 }
 
 function applyPublicSiteSettings(siteSettings) {
@@ -1261,6 +1282,27 @@ function renderPublicProductCatalog() {
   const tabsRoot = document.getElementById("productVarietyTabs");
   if (!sectionRoot || !tabsRoot) return;
 
+  if (publicProductCatalogState !== "ready") {
+    tabsRoot.innerHTML = "";
+    sectionRoot.innerHTML =
+      publicProductCatalogState === "error"
+        ? `
+          <div class="product-catalog-status product-catalog-status-error" role="alert">
+            <strong>目前無法取得商品資料</strong>
+            <span>為避免顯示錯誤庫存，商品已暫停顯示，請稍後重試。</span>
+            <button type="button" onclick="retryPublicProductCatalog()">重新讀取商品</button>
+          </div>
+        `
+        : `
+          <div class="product-catalog-status" role="status" aria-live="polite">
+            <strong>商品載入中</strong>
+            <span>正在取得最新商品與庫存資料，請稍候。</span>
+          </div>
+        `;
+    calculate();
+    return;
+  }
+
   const selectedBeforeRender = getSelectedQuantitiesByCode();
   const products = getActivePublicProducts();
   const groups = groupProductsByVariety(products);
@@ -1268,9 +1310,6 @@ function renderPublicProductCatalog() {
 
   sectionRoot.innerHTML = `
     ${groups.map(renderProductVarietyPanel).join("")}
-    <p class="product-category-note product-category-note-dynamic" id="twoPieceOrderNotice" style="display: none">
-      兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。
-    </p>
   `;
   const draftSelected = getCachedOrderDraft()?.productQuantities || {};
   applySelectedQuantitiesByCode(
@@ -1296,13 +1335,13 @@ function groupProductsByVariety(products) {
 }
 
 function renderProductVarietyPanel(group) {
-  const hasLimited = group.products.some(hasLimitedStock);
+  const hasLowStock = group.products.some(shouldShowLowStock);
   const hasTwoPiece = group.products.some((product) =>
     isTwoPieceCategory(product.category),
   );
   const hint = hasTwoPiece
-    ? "兩顆裝禮盒一次需購買 6 盒；未滿 6 盒無法出貨敬請見諒。"
-    : hasLimited
+    ? "兩顆裝禮盒可跨級別混搭，每 6 盒為一組；合計需為 6 的倍數。"
+    : hasLowStock
       ? "因氣候影響，產量減少限量供應，有需要的朋友請提前訂購"
       : "可直接調整盒數，系統會自動計算運費。";
 
@@ -1312,7 +1351,7 @@ function renderProductVarietyPanel(group) {
         <div>
           <h2>${escapeHtml(group.variety)}</h2>
         </div>
-        <span>${hasLimited ? "部分庫存有限" : "本期供應"}</span>
+        <span>${hasLowStock ? "部分庫存有限" : "本期供應"}</span>
       </div>
       <div class="product-panel-hint">${hint}</div>
       <div class="product-direct-list">
@@ -1327,7 +1366,7 @@ function renderDirectProductRow(product) {
   const categoryBadge = isTwoPiece
     ? '<span class="product-direct-badge">兩顆裝</span>'
     : "";
-  const stockText = hasLimitedStock(product)
+  const stockText = shouldShowLowStock(product)
     ? `<div class="product-direct-meta"><span class="product-direct-stock">剩 ${product.stock} 盒</span></div>`
     : "";
   const priceText = Number.isFinite(product.price)
@@ -1368,15 +1407,24 @@ function getProductDisplayLabel(product) {
 }
 
 function renderProductOption(product, selectedId = "") {
-  const stockText = hasLimitedStock(product) ? `｜剩 ${product.stock} 盒` : "";
+  const stockText = shouldShowLowStock(product)
+    ? `｜剩 ${product.stock} 盒`
+    : "";
   const disabledText =
     product.stock === 0 && product.id !== selectedId ? " disabled" : "";
   const selectedText = product.id === selectedId ? " selected" : "";
   return `<option value="${escapeHtmlAttribute(product.id)}"${selectedText}${disabledText}>${escapeHtml(getProductDisplayLabel(product))}${stockText}</option>`;
 }
 
-function hasLimitedStock(product) {
+function hasFiniteStock(product) {
   return Number.isInteger(product.stock) && product.stock >= 0;
+}
+
+function shouldShowLowStock(product) {
+  return (
+    hasFiniteStock(product) &&
+    product.stock < LOW_STOCK_DISPLAY_THRESHOLD
+  );
 }
 
 function getSelectedProductQty(id) {
@@ -1385,7 +1433,7 @@ function getSelectedProductQty(id) {
 }
 
 function getRemainingStock(product) {
-  if (!hasLimitedStock(product)) return null;
+  if (!hasFiniteStock(product)) return null;
   return Math.max(0, product.stock - getSelectedProductQty(product.id));
 }
 
@@ -1398,7 +1446,6 @@ function getPublicProductById(id) {
 }
 
 function renderSelectedProductList() {
-  updateTwoPieceOrderNotice();
   renderSelectedProductSummary();
 }
 
@@ -1430,14 +1477,36 @@ function renderSelectedProductSummary() {
     return;
   }
 
+  const selectionState = getTwoPieceSelectionState(items);
+  const twoPieceProgress =
+    selectionState.twoPieceBoxes === 0
+      ? ""
+      : selectionState.isComplete
+        ? `
+          <div class="two-piece-progress two-piece-progress-complete" role="status">
+            ✓ 兩粒禮盒已完成 ${selectionState.completedGroups} 組
+          </div>
+        `
+        : `
+          <div class="two-piece-progress two-piece-progress-warning" role="alert">
+            ⚠️ 兩粒禮盒已選 ${selectionState.twoPieceBoxes}／${selectionState.nextGroupTarget} 盒，
+            請再選購 ${selectionState.remainingBoxes} 盒兩粒禮盒，完成一組後即可送出訂單。
+          </div>
+        `;
+
   summary.innerHTML = `
     <div class="selected-summary-title">已選商品</div>
+    <div class="selected-category-totals">
+      <div><span>一般禮盒</span><strong>${selectionState.generalBoxes}盒</strong></div>
+      <div><span>兩粒禮盒</span><strong>${selectionState.twoPieceBoxes}盒</strong></div>
+    </div>
+    ${twoPieceProgress}
     <div class="selected-summary-list">
       ${items
         .map((item) => {
           const product = getPublicProductById(item.id);
           const label = product ? getProductDisplayLabel(product) : item.level;
-          const stockText = Number.isInteger(item.stock)
+          const stockText = product && shouldShowLowStock(product)
             ? `<span class="selected-summary-stock">剩 ${Math.max(0, item.stock - item.qty)} 盒</span>`
             : "";
           return `
@@ -1453,14 +1522,34 @@ function renderSelectedProductSummary() {
   `;
 }
 
-function updateTwoPieceOrderNotice() {
-  const notice = document.getElementById("twoPieceOrderNotice");
-  if (!notice) return;
+function getTwoPieceSelectionState(
+  items = getSelectedOrderItemsFromHiddenInputs(),
+) {
+  let generalBoxes = 0;
+  let twoPieceBoxes = 0;
 
-  const hasTwoPieceSelected = getSelectedOrderItemsFromHiddenInputs().some(
-    (item) => isTwoPieceCategory(item.category),
-  );
-  notice.style.display = hasTwoPieceSelected ? "" : "none";
+  items.forEach((item) => {
+    const qty = parseInt(item?.qty, 10) || 0;
+    if (isTwoPieceCategory(item?.category)) {
+      twoPieceBoxes += qty;
+    } else {
+      generalBoxes += qty;
+    }
+  });
+
+  const remainder = twoPieceBoxes % 6;
+  return {
+    generalBoxes,
+    twoPieceBoxes,
+    completedGroups: Math.floor(twoPieceBoxes / 6),
+    isComplete: remainder === 0,
+    remainingBoxes: remainder === 0 ? 0 : 6 - remainder,
+    nextGroupTarget: remainder === 0 ? twoPieceBoxes : twoPieceBoxes + 6 - remainder,
+  };
+}
+
+function isTwoPieceSelectionComplete() {
+  return getTwoPieceSelectionState().isComplete;
 }
 
 function parseOptionalInteger(value) {
@@ -1545,7 +1634,7 @@ function renderQtyControl(product, inputClass) {
         data-weight="${escapeHtmlAttribute(product.weight)}"
         data-count="${escapeHtmlAttribute(product.count)}"
         data-price="${escapeHtmlAttribute(product.price)}"
-        data-stock="${hasLimitedStock(product) ? product.stock : ""}"
+        data-stock="${hasFiniteStock(product) ? product.stock : ""}"
         min="0"
         value="0"
         onchange="syncAndCalculate(this.dataset.id, this.value)"
@@ -1706,7 +1795,7 @@ function syncAndCalculate(id, val) {
     recordOrderFunnelEvent("product_selected", { detail: String(id || "") });
   }
   const product = getPublicProductById(id);
-  if (product && hasLimitedStock(product) && intVal > product.stock) {
+  if (product && hasFiniteStock(product) && intVal > product.stock) {
     intVal = product.stock;
     alert(`${product.grade} 目前剩 ${product.stock} 盒。`);
   }
@@ -1768,6 +1857,7 @@ function calculate() {
     document.getElementById("grandTotal").innerText =
       grandTotal.toLocaleString();
   renderSelectedProductList();
+  updateOrderSubmitAvailability();
 }
 
 // 寄件人同收件人勾選邏輯
@@ -2112,11 +2202,15 @@ async function submitOrder(e) {
     }
   });
 
-  if (twoPieceBoxes > 0 && twoPieceBoxes < 6) {
+  if (twoPieceBoxes > 0 && twoPieceBoxes % 6 !== 0) {
+    const remainingBoxes = 6 - (twoPieceBoxes % 6);
+    const nextGroupTarget = twoPieceBoxes + remainingBoxes;
     recordOrderFunnelEvent("validation_blocked", {
-      detail: "two_piece_minimum",
+      detail: "two_piece_incomplete_group",
     });
-    alert("蔗香梨兩顆裝禮盒一次需購買 6 盒才享免運；未滿 6 盒暫不出貨。");
+    alert(
+      `兩粒禮盒已選 ${twoPieceBoxes}／${nextGroupTarget} 盒，請再選購 ${remainingBoxes} 盒兩粒禮盒，完成一組後即可送出訂單。`,
+    );
     return;
   }
 
