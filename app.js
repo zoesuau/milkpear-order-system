@@ -17,6 +17,9 @@ let orderSubmitInProgress = false;
 let lineLiffInitialized = false;
 let linePairingToken = "";
 let linePairingPollTimer = null;
+let linePairingPollStartedAt = 0;
+let linePairingPollInFlight = false;
+let linePairingPollFailureCount = 0;
 let linePairingCompletionPromise = null;
 let orderFunnelSessionId = "";
 let orderFunnelProductSelected = false;
@@ -35,6 +38,10 @@ const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
 const LIFF_INVALID_GRANT_RECOVERY_KEY = "milkpearLiffInvalidGrantRecovered";
 const ORDER_DRAFT_STORAGE_KEY = "milkpearOrderDraftV1";
 const ORDER_DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+const LINE_PAIRING_POLL_INTERVAL_MS = 2500;
+const LINE_PAIRING_POLL_MAX_DURATION_MS = 10 * 60 * 1000;
+const LINE_PAIRING_POLL_REQUEST_TIMEOUT_MS = 12000;
+const LINE_PAIRING_POLL_MAX_BACKOFF_MS = 30000;
 const LOW_STOCK_DISPLAY_THRESHOLD = 50;
 const OFFSHORE_SHIPPING_KEYWORDS = ["金門", "澎湖", "連江", "馬祖", "綠島"];
 const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
@@ -251,6 +258,19 @@ function getOrderFunnelContextType() {
   }
 }
 
+function createGasRequestId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function addGasGetTraceContext(requestUrl, requestSource) {
+  requestUrl.searchParams.set("source", String(requestSource || "customer_page"));
+  requestUrl.searchParams.set("requestId", createGasRequestId());
+  return requestUrl;
+}
+
 function recordOrderFunnelEvent(eventName, details = {}) {
   const payload = {
     action: "logOrderFunnelEvent",
@@ -418,6 +438,7 @@ async function fetchLineOfficialAccountFriendUrl() {
   const requestUrl = new URL(GAS_ORDERS_API_URL);
   requestUrl.searchParams.set("action", "readLineOfficialAccountInfo");
   requestUrl.searchParams.set("t", String(Date.now()));
+  addGasGetTraceContext(requestUrl, "customer_line_friend_info");
   const response = await fetch(requestUrl.toString(), {
     method: "GET",
     cache: "no-store",
@@ -592,7 +613,12 @@ async function postLinePairingAction(action, extra = {}) {
   const response = await fetch(GAS_ORDERS_API_URL + "?t=" + Date.now(), {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action, ...extra }),
+    body: JSON.stringify({
+      action,
+      requestSource: "customer_line_pairing",
+      requestId: createGasRequestId(),
+      ...extra,
+    }),
   });
   const payload = await response.json();
   if (!response.ok || payload?.ok !== true || payload?.action !== action) {
@@ -611,6 +637,8 @@ async function createDesktopLinePairing() {
   const payload = await postLinePairingAction("createLinePairing");
   linePairingToken = String(payload.pairingToken || "").trim();
   if (!linePairingToken) throw new Error("LINE_PAIRING_TOKEN_MISSING");
+  linePairingPollStartedAt = Date.now();
+  linePairingPollFailureCount = 0;
 
   const pairingUrl = `${LINE_LIFF_URL}?pair=${encodeURIComponent(linePairingToken)}`;
   const mobileLink = document.getElementById("linePairingMobileLink");
@@ -632,22 +660,74 @@ async function createDesktopLinePairing() {
   scheduleLinePairingPoll();
 }
 
-function scheduleLinePairingPoll() {
+function stopLinePairingPoll(message = "", clearToken = false) {
   if (linePairingPollTimer) window.clearTimeout(linePairingPollTimer);
-  linePairingPollTimer = window.setTimeout(pollLinePairingStatus, 1800);
+  linePairingPollTimer = null;
+  if (clearToken) linePairingToken = "";
+  if (message) {
+    const status = document.getElementById("linePairingStatus");
+    if (status) status.textContent = message;
+  }
+}
+
+function hasLinePairingPollExpired() {
+  return (
+    linePairingPollStartedAt > 0 &&
+    Date.now() - linePairingPollStartedAt >= LINE_PAIRING_POLL_MAX_DURATION_MS
+  );
+}
+
+function scheduleLinePairingPoll(delayMs = LINE_PAIRING_POLL_INTERVAL_MS) {
+  if (linePairingPollTimer) window.clearTimeout(linePairingPollTimer);
+  linePairingPollTimer = null;
+  if (!linePairingToken || lineFriendshipState === "friend") return;
+  if (hasLinePairingPollExpired()) {
+    stopLinePairingPoll(
+      "LINE 綁定等待已暫停，請重新整理頁面後產生新的 QR Code。",
+      true,
+    );
+    return;
+  }
+  if (document.visibilityState === "hidden") return;
+  linePairingPollTimer = window.setTimeout(
+    pollLinePairingStatus,
+    Math.max(0, Number(delayMs) || 0),
+  );
 }
 
 async function pollLinePairingStatus() {
-  if (!linePairingToken) return;
+  if (!linePairingToken || linePairingPollInFlight) return;
+  if (hasLinePairingPollExpired()) {
+    stopLinePairingPoll(
+      "LINE 綁定等待已暫停，請重新整理頁面後產生新的 QR Code。",
+      true,
+    );
+    return;
+  }
+  if (document.visibilityState === "hidden") return;
+
+  linePairingPollInFlight = true;
+  let shouldContinuePolling = true;
+  const controller =
+    typeof AbortController === "undefined" ? null : new AbortController();
+  const timeoutTimer = window.setTimeout(() => {
+    controller?.abort();
+  }, LINE_PAIRING_POLL_REQUEST_TIMEOUT_MS);
   try {
     const requestUrl = new URL(GAS_ORDERS_API_URL);
     requestUrl.searchParams.set("action", "readLinePairingStatus");
     requestUrl.searchParams.set("pairingToken", linePairingToken);
     requestUrl.searchParams.set("t", String(Date.now()));
-    const response = await fetch(requestUrl.toString(), { cache: "no-store" });
+    addGasGetTraceContext(requestUrl, "customer_desktop_line_pairing_poll");
+    const response = await fetch(requestUrl.toString(), {
+      cache: "no-store",
+      signal: controller?.signal,
+    });
     const payload = await response.json();
     if (payload?.ok === true && payload?.paired === true) {
       lineFriendshipState = "friend";
+      linePairingPollFailureCount = 0;
+      shouldContinuePolling = false;
       const panel = document.getElementById("linePairingPanel");
       const status = document.getElementById("linePairingStatus");
       panel?.classList.add("is-complete");
@@ -658,11 +738,44 @@ async function pollLinePairingStatus() {
       updateOrderSubmitAvailability();
       return;
     }
+    if (payload?.error === "LINE_PAIRING_EXPIRED") {
+      shouldContinuePolling = false;
+      stopLinePairingPoll(
+        "LINE 綁定碼已過期，請重新整理頁面後產生新的 QR Code。",
+        true,
+      );
+      return;
+    }
+    linePairingPollFailureCount = payload?.ok === true
+      ? 0
+      : linePairingPollFailureCount + 1;
   } catch (error) {
+    linePairingPollFailureCount += 1;
     console.warn("等待 LINE 綁定中:", error);
+  } finally {
+    window.clearTimeout(timeoutTimer);
+    linePairingPollInFlight = false;
+    if (shouldContinuePolling && linePairingToken) {
+      const backoffMs = Math.min(
+        LINE_PAIRING_POLL_MAX_BACKOFF_MS,
+        LINE_PAIRING_POLL_INTERVAL_MS *
+          Math.max(1, 2 ** linePairingPollFailureCount),
+      );
+      scheduleLinePairingPoll(backoffMs);
+    }
   }
-  scheduleLinePairingPoll();
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    if (linePairingPollTimer) window.clearTimeout(linePairingPollTimer);
+    linePairingPollTimer = null;
+    return;
+  }
+  if (linePairingToken && lineFriendshipState === "pairing") {
+    scheduleLinePairingPoll(0);
+  }
+});
 
 async function completeLinePairingFromPhone(pairingToken) {
   if (linePairingCompletionPromise) return linePairingCompletionPromise;
@@ -1188,6 +1301,7 @@ async function fetchPublicProductCatalog() {
     const requestUrl = new URL(GAS_ORDERS_API_URL);
     requestUrl.searchParams.set("action", "readPublicProductCatalog");
     requestUrl.searchParams.set("t", String(Date.now()));
+    addGasGetTraceContext(requestUrl, "customer_product_catalog");
 
     const response = await fetch(requestUrl.toString(), {
       method: "GET",
@@ -1698,6 +1812,7 @@ async function fetchShippingBatches() {
     const requestUrl = new URL(GAS_ORDERS_API_URL);
     requestUrl.searchParams.set("action", "readShippingBatches");
     requestUrl.searchParams.set("t", String(Date.now()));
+    addGasGetTraceContext(requestUrl, "customer_shipping_batches");
 
     const response = await fetch(requestUrl.toString(), {
       method: "GET",
