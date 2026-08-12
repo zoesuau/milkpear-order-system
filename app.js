@@ -26,17 +26,22 @@ let orderFunnelProductSelected = false;
 let orderDraftSaveTimer = null;
 let orderDraftRestoring = false;
 let cachedOrderDraft = null;
-const LINE_LIFF_ID = "2010333281-Ra5txFF3";
+const ORDER_SYSTEM_CONFIG = window.ORDER_SYSTEM_CONFIG;
+if (!ORDER_SYSTEM_CONFIG) {
+  throw new Error("ORDER_SYSTEM_CONFIG_MISSING");
+}
+const LINE_LIFF_ID = String(ORDER_SYSTEM_CONFIG.line?.liffId || "");
 const LINE_LIFF_URL = `https://liff.line.me/${LINE_LIFF_ID}`;
 let orderFormSupplementState = {
   successVisible: false,
   historyVisible: false,
 };
-const GAS_ORDERS_API_URL =
-  "https://script.google.com/macros/s/AKfycby9r7QgpvOJ7KP_3uVI9eYHkzeJnPVFhP7Z3uQdQBvMogYglPoim79H3HJpjyUAgW57/exec";
-const ORDER_FUNNEL_SESSION_STORAGE_KEY = "milkpearOrderFunnelSessionId";
-const LIFF_INVALID_GRANT_RECOVERY_KEY = "milkpearLiffInvalidGrantRecovered";
-const ORDER_DRAFT_STORAGE_KEY = "milkpearOrderDraftV1";
+const GAS_ORDERS_API_URL = String(ORDER_SYSTEM_CONFIG.gasApiUrl || "");
+const STORAGE_NAMESPACE = `${ORDER_SYSTEM_CONFIG.productId}:${ORDER_SYSTEM_CONFIG.customerId}:${ORDER_SYSTEM_CONFIG.environment}`;
+const ORDER_FUNNEL_SESSION_STORAGE_KEY = `${STORAGE_NAMESPACE}:orderFunnelSessionId`;
+const LIFF_INVALID_GRANT_RECOVERY_KEY = `${STORAGE_NAMESPACE}:liffInvalidGrantRecovered`;
+const ORDER_DRAFT_STORAGE_KEY = `${STORAGE_NAMESPACE}:orderDraftV1`;
+const PUBLIC_ORDER_REQUEST_STORAGE_KEY = `${STORAGE_NAMESPACE}:publicOrderRequestV1`;
 const ORDER_DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 const LINE_PAIRING_POLL_INTERVAL_MS = 2500;
 const LINE_PAIRING_POLL_MAX_DURATION_MS = 10 * 60 * 1000;
@@ -542,7 +547,7 @@ async function checkLineOfficialAccountFriendship(options = {}) {
       lineFriendshipState = "not_friend";
       if (showGate) {
         showLineFriendGate(
-          "為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。",
+          `為了接收訂單成立與匯款資訊，請先加入${ORDER_SYSTEM_CONFIG.brandName}官方 LINE。`,
         );
       }
       return false;
@@ -1196,8 +1201,34 @@ function renderMyOrders(focusOrderNo = "") {
   }
 }
 
+function applyCustomerPublicConfig() {
+  const brandName = String(ORDER_SYSTEM_CONFIG.brandName || "").trim();
+  const siteTitle = String(
+    ORDER_SYSTEM_CONFIG.publicSiteTitle || `${brandName}訂購系統`,
+  ).trim();
+  if (siteTitle) {
+    document.title = siteTitle;
+    const heading = document.getElementById("publicSiteTitle");
+    if (heading) heading.textContent = siteTitle;
+  }
+  document
+    .querySelectorAll(".line-friend-gate-brand, .my-orders-eyebrow")
+    .forEach((element) => {
+      if (brandName) element.textContent = brandName;
+    });
+  const banner = document.querySelector(".product-banner img");
+  const bannerUrl = String(
+    ORDER_SYSTEM_CONFIG.assets?.bannerImageUrl || "",
+  ).trim();
+  if (banner && bannerUrl) {
+    banner.src = bannerUrl;
+    banner.alt = `${brandName}商品示意`;
+  }
+}
+
 // ⚡ 核心修復：DOMContentLoaded 時啟動 LIFF 與基礎事件綁定
 async function initializeOrderPage() {
+  applyCustomerPublicConfig();
   console.log("DOM 載入完成，啟動 LIFF 初始化...");
   // LINE 導引按鈕必須最先綁定，不能被商品、地址或其他外部套件的
   // 初始化錯誤連帶中斷。
@@ -2012,6 +2043,75 @@ function handleSenderInput() {
   }
 }
 
+function createPublicOrderRequestKey() {
+  const randomPart =
+    globalThis.crypto?.randomUUID?.().replace(/-/g, "") ||
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return `por_${randomPart}`.slice(0, 120);
+}
+
+function buildPublicOrderPayloadSignature(data) {
+  const items = Array.isArray(data?.items)
+    ? data.items
+        .map((item) => ({
+          code: String(item?.code || "").trim(),
+          qty: Number(item?.qty),
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code) || a.qty - b.qty)
+    : [];
+  return JSON.stringify({
+    lineUserId: String(data?.lineUserId || "").trim(),
+    senderName: String(data?.senderName || "").trim(),
+    senderPhone: String(data?.senderPhone || "").replace(/[^\d+]/g, ""),
+    recipientName: String(data?.name || "").trim(),
+    recipientPhone: String(data?.phone || "").replace(/[^\d+]/g, ""),
+    address: String(data?.address || "").trim(),
+    paymentMethod: String(data?.paymentMethod || "").trim(),
+    requestedShippingBatchId: String(
+      data?.requestedShippingBatchId || "",
+    ).trim(),
+    note: String(data?.note || "").trim(),
+    items,
+  });
+}
+
+function getPublicOrderRequestKeyForPayload(data) {
+  const signature = buildPublicOrderPayloadSignature(data);
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(PUBLIC_ORDER_REQUEST_STORAGE_KEY) || "null",
+    );
+    if (
+      stored &&
+      stored.signature === signature &&
+      /^[A-Za-z0-9_-]{16,120}$/.test(String(stored.requestKey || ""))
+    ) {
+      return stored.requestKey;
+    }
+  } catch (error) {
+    console.warn("無法讀取送單識別碼，將建立新的識別碼：", error);
+  }
+
+  const requestKey = createPublicOrderRequestKey();
+  try {
+    localStorage.setItem(
+      PUBLIC_ORDER_REQUEST_STORAGE_KEY,
+      JSON.stringify({ requestKey, signature, createdAt: Date.now() }),
+    );
+  } catch (error) {
+    console.warn("無法保存送單識別碼：", error);
+  }
+  return requestKey;
+}
+
+function clearPublicOrderRequestKey() {
+  try {
+    localStorage.removeItem(PUBLIC_ORDER_REQUEST_STORAGE_KEY);
+  } catch (error) {
+    console.warn("無法清除送單識別碼：", error);
+  }
+}
+
 function getCachedOrderDraft() {
   if (cachedOrderDraft) return cachedOrderDraft;
   try {
@@ -2351,6 +2451,7 @@ async function submitOrder(e) {
     boxes: boxes,
     items: orderItems,
   };
+  data.requestKey = getPublicOrderRequestKeyForPayload(data);
 
   const btn =
     document.getElementById("submitBtn") ||
@@ -2399,8 +2500,13 @@ async function submitOrder(e) {
     data.orderNo = String(result.orderNo || "").trim();
     myOrdersLoaded = false;
     recordOrderFunnelEvent("submit_success", {
-      detail: data.orderNo ? "order_created" : "success_without_order_no",
+      detail: result?.deduped === true
+        ? "duplicate_request_recovered"
+        : data.orderNo
+          ? "order_created"
+          : "success_without_order_no",
     });
+    clearPublicOrderRequestKey();
     clearOrderDraft();
 
     // 渲染成功區塊資訊（如果 HTML 有對應元素的話）
@@ -2492,6 +2598,12 @@ async function submitOrder(e) {
       LINE_PAIRING_EXPIRED: "LINE 綁定已逾時，請重新整理頁面後再掃描一次。",
       PUBLIC_ORDER_REQUIRED_FIELDS: "訂購資料未填完整，請檢查必填欄位。",
       PUBLIC_ORDER_PHONE_INVALID: "電話格式不正確，請重新確認電話號碼。",
+      PUBLIC_ORDER_REQUEST_KEY_INVALID:
+        "送單識別碼失效，請重新整理頁面後再試。",
+      PUBLIC_ORDER_REQUEST_KEY_CONFLICT:
+        "這次內容與先前送單不同，為避免重複訂單，請重新整理後確認「我的訂單」再建立新單。",
+      PUBLIC_ORDER_INDETERMINATE:
+        "上一筆訂單仍在確認中，請先到「我的訂單」查核，暫時不要再次送出。",
       ORDER_AMOUNT_MISMATCH: "訂單金額驗證失敗，請重新整理頁面後再送出。",
       ORDER_SHIPPING_FEE_MISMATCH: "運費驗證失敗，請重新整理頁面後再送出。",
       ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
@@ -2512,7 +2624,7 @@ async function submitOrder(e) {
         console.error("取得官方 LINE 加好友網址失敗:", friendUrlError);
       }
       showLineFriendGate(
-        "為了確保訂購小卡能送達，請先加入三合院農園官方 LINE。",
+        `為了確保訂購小卡能送達，請先加入${ORDER_SYSTEM_CONFIG.brandName}官方 LINE。`,
       );
       return;
     }
@@ -2527,6 +2639,7 @@ async function submitOrder(e) {
 
 // 重設下一單的表單內容
 function resetFormForNext() {
+  clearPublicOrderRequestKey();
   clearOrderDraft();
   const orderForm = document.getElementById("orderForm");
   if (orderForm) orderForm.reset();

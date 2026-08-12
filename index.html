@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
-    <title>三合院農園訂購系統</title>
+    <title>訂購系統</title>
     <!-- 🎯 核心引入 1：LINE 官方 LIFF SDK -->
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -32,10 +32,10 @@
       hidden
     >
       <div class="line-friend-gate-card">
-        <div class="line-friend-gate-brand">三合院農園</div>
+        <div class="line-friend-gate-brand">商店</div>
         <h2 id="lineFriendGateTitle">請先加入官方 LINE</h2>
         <p id="lineFriendGateMessage">
-          為了接收訂單成立與匯款資訊，請先加入三合院農園官方 LINE。
+          為了接收訂單成立與匯款資訊，請先加入官方 LINE。
         </p>
         <button
           id="lineAddFriendLink"
@@ -56,7 +56,7 @@
       </div>
     </div>
     <div class="container">
-      <h1>三合院農園訂購系統</h1>
+      <h1 id="publicSiteTitle">訂購系統</h1>
 
       <section id="linePairingPanel" class="line-pairing-panel" hidden>
         <div class="line-pairing-copy">
@@ -93,8 +93,8 @@
 
         <div class="product-banner">
           <img
-            src="assets/sanheyuan-banner.png"
-            alt="三合院農園梨子商品示意"
+            src="assets/banner.png"
+            alt="商品示意"
             onerror="this.closest('.product-banner').style.display='none'"
           />
         </div>
@@ -298,7 +298,7 @@
       <section id="myOrdersSection" class="my-orders-section" hidden>
         <div class="my-orders-header">
           <div>
-            <p class="my-orders-eyebrow">三合院農園</p>
+            <p class="my-orders-eyebrow">商店</p>
             <h2>我的訂單</h2>
             <p>這裡會顯示店家更新後的最新資料。</p>
           </div>
@@ -360,7 +360,7 @@
               border-top: 1px dashed #fbc02d;
               padding-top: 10px;
               color: #f57f17;
-              display: none; 
+              display: none;
             "
           >
             <strong>📢 【貨到付款須知】</strong><br />
@@ -395,6 +395,7 @@
         <div id="historyContainer"></div>
       </div>
     </div>
-    <script src="./app.js?v=20260808-line-poll-1"></script>
+    <script src="./customer-config.js?v=20260812-config-1"></script>
+    <script src="./app.js?v=20260812-public-idempotency-1"></script>
   </body>
 </html>
