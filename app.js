@@ -276,6 +276,38 @@ function addGasGetTraceContext(requestUrl, requestSource) {
   return requestUrl;
 }
 
+async function fetchGasJsonGetWithRetry(requestUrl, maxAttempts = 3) {
+  let lastError = null;
+  const attempts = Math.max(1, Number(maxAttempts) || 1);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const attemptUrl = new URL(requestUrl.toString());
+      attemptUrl.searchParams.set("t", String(Date.now()));
+      attemptUrl.searchParams.set("requestId", createGasRequestId());
+      const response = await fetch(attemptUrl.toString(), {
+        method: "GET",
+        cache: "no-store",
+      });
+      const responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`GAS_HTTP_${response.status}`);
+      }
+      try {
+        return { response, payload: JSON.parse(responseText) };
+      } catch (parseError) {
+        throw new Error("GAS_NON_JSON_RESPONSE");
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts) break;
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 500 * attempt),
+      );
+    }
+  }
+  throw lastError || new Error("GAS_GET_FAILED");
+}
+
 function recordOrderFunnelEvent(eventName, details = {}) {
   const payload = {
     action: "logOrderFunnelEvent",
@@ -1334,11 +1366,8 @@ async function fetchPublicProductCatalog() {
     requestUrl.searchParams.set("t", String(Date.now()));
     addGasGetTraceContext(requestUrl, "customer_product_catalog");
 
-    const response = await fetch(requestUrl.toString(), {
-      method: "GET",
-      cache: "no-store",
-    });
-    const payload = await response.json();
+    const { response, payload } =
+      await fetchGasJsonGetWithRetry(requestUrl);
 
     if (
       !response.ok ||
@@ -1845,11 +1874,8 @@ async function fetchShippingBatches() {
     requestUrl.searchParams.set("t", String(Date.now()));
     addGasGetTraceContext(requestUrl, "customer_shipping_batches");
 
-    const response = await fetch(requestUrl.toString(), {
-      method: "GET",
-      cache: "no-store",
-    });
-    const payload = await response.json();
+    const { response, payload } =
+      await fetchGasJsonGetWithRetry(requestUrl);
 
     if (
       !response.ok ||
