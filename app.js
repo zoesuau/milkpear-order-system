@@ -1514,7 +1514,7 @@ function renderProductVarietyPanel(group) {
     isTwoPieceCategory(product.category),
   );
   const hint = hasTwoPiece
-    ? "兩顆裝禮盒可跨級別混搭，每 6 盒為一組；合計需為 6 的倍數。"
+    ? "兩顆裝禮盒可跨級別、與一般禮盒混搭；每 2 盒為一組，每組折算 1 個運費箱數。"
     : hasLowStock
       ? "因氣候影響，產量減少限量供應，有需要的朋友請提前訂購"
       : "可直接調整盒數，系統會自動計算運費。";
@@ -1711,14 +1711,15 @@ function getTwoPieceSelectionState(
     }
   });
 
-  const remainder = twoPieceBoxes % 6;
+  const remainder = twoPieceBoxes % 2;
   return {
     generalBoxes,
     twoPieceBoxes,
-    completedGroups: Math.floor(twoPieceBoxes / 6),
+    completedGroups: Math.floor(twoPieceBoxes / 2),
     isComplete: remainder === 0,
-    remainingBoxes: remainder === 0 ? 0 : 6 - remainder,
-    nextGroupTarget: remainder === 0 ? twoPieceBoxes : twoPieceBoxes + 6 - remainder,
+    remainingBoxes: remainder === 0 ? 0 : 2 - remainder,
+    nextGroupTarget:
+      remainder === 0 ? twoPieceBoxes : twoPieceBoxes + 2 - remainder,
   };
 }
 
@@ -1985,6 +1986,8 @@ function syncAndCalculate(id, val) {
 function calculate() {
   const pcInputs = document.querySelectorAll(".qty-input");
   let totalBoxes = 0;
+  let generalBoxes = 0;
+  let twoPieceBoxes = 0;
   let subTotal = 0;
 
   // 因為雙向同步了，直接統一計算桌機版的數值即為正確總數
@@ -1992,11 +1995,17 @@ function calculate() {
     const qty = parseInt(input.value) || 0;
     const price = parseInt(input.getAttribute("data-price")) || 0;
     totalBoxes += qty;
+    if (isTwoPieceCategory(input.getAttribute("data-category"))) {
+      twoPieceBoxes += qty;
+    } else {
+      generalBoxes += qty;
+    }
     subTotal += qty * price;
   });
 
+  const shippingBoxes = generalBoxes + Math.floor(twoPieceBoxes / 2);
   const shippingFee = calculateShippingFeeByAddress(
-    totalBoxes,
+    shippingBoxes,
     getCurrentShippingAddress(),
   );
 
@@ -2443,8 +2452,8 @@ async function submitOrder(e) {
     }
   });
 
-  if (twoPieceBoxes > 0 && twoPieceBoxes % 6 !== 0) {
-    const remainingBoxes = 6 - (twoPieceBoxes % 6);
+  if (twoPieceBoxes > 0 && twoPieceBoxes % 2 !== 0) {
+    const remainingBoxes = 2 - (twoPieceBoxes % 2);
     const nextGroupTarget = twoPieceBoxes + remainingBoxes;
     recordOrderFunnelEvent("validation_blocked", {
       detail: "two_piece_incomplete_group",
