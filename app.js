@@ -1431,6 +1431,7 @@ function normalizePublicCatalogProduct(product) {
     code: String(product?.code ?? "").trim(),
     variety: String(product?.variety ?? "").trim(),
     category: normalizePublicProductCategory(product?.category),
+    shippingRule: getPublicProductShippingRule(product),
     grade: String(product?.grade ?? "").trim(),
     weight: "",
     count: String(product?.count ?? "").trim(),
@@ -1451,6 +1452,11 @@ function normalizePublicProductCategory(category) {
 
 function isTwoPieceCategory(category) {
   return normalizePublicProductCategory(category) === "兩粒禮盒";
+}
+
+function getPublicProductShippingRule(product) {
+  return product?.shippingRule || (isTwoPieceCategory(product?.category) ||
+    (product?.variety === "日本蜜柑" && product?.count === "5斤") ? "half_6" : "standard_3");
 }
 
 function renderPublicProductCatalog() {
@@ -1515,8 +1521,10 @@ function renderProductVarietyPanel(group) {
   const hasTwoPiece = group.products.some((product) =>
     isTwoPieceCategory(product.category),
   );
-  const hint = hasTwoPiece
-    ? "兩顆裝禮盒可跨級別、與一般禮盒混搭；每 2 盒為一組，每組折算 1 個運費箱數。"
+  const hint = group.variety === "日本蜜柑"
+    ? "五斤裝、十斤裝皆可單盒購買，免運組數依各商品標示。"
+    : hasTwoPiece
+      ? "兩顆裝禮盒可跨級別搭配，合計須為 2 的倍數；運費依各商品標示的規則計算。"
     : hasLowStock
       ? "因氣候影響，產量減少限量供應，有需要的朋友請提前訂購"
       : "可直接調整盒數，系統會自動計算運費。";
@@ -1553,10 +1561,11 @@ function renderDirectProductRow(product) {
     <div class="product-direct-row${isTwoPiece ? " product-direct-row-featured" : ""}">
       <div class="product-direct-info">
         <div class="product-direct-title">
-          <strong>${escapeHtml(product.grade)} 級別</strong>
+          <strong>${escapeHtml(product.grade)}${product.variety === "日本蜜柑" ? "裝" : " 級別"}</strong>
           ${categoryBadge}
         </div>
-        <div class="product-direct-count">${escapeHtml(product.count)}裝</div>
+        ${product.variety === "日本蜜柑" ? "" : `<div class="product-direct-count">${escapeHtml(product.count)}裝</div>`}
+        <div class="product-direct-count">${getPublicProductShippingRule(product) === "half_6" ? "六盒免運" : "三盒免運"}</div>
         <div class="product-direct-price">$${priceText}</div>
         ${stockText}
       </div>
@@ -1808,6 +1817,7 @@ function renderQtyControl(product, inputClass) {
         data-level="${escapeHtmlAttribute(product.grade)}"
         data-variety="${escapeHtmlAttribute(product.variety)}"
         data-category="${escapeHtmlAttribute(product.category)}"
+        data-shipping-rule="${escapeHtmlAttribute(getPublicProductShippingRule(product))}"
         data-weight="${escapeHtmlAttribute(product.weight)}"
         data-count="${escapeHtmlAttribute(product.count)}"
         data-price="${escapeHtmlAttribute(product.price)}"
@@ -1841,20 +1851,17 @@ function isOffshoreShippingAddress(address) {
   return OFFSHORE_SHIPPING_KEYWORDS.some((keyword) => text.includes(keyword));
 }
 
-function calculateShippingFeeByAddress(totalBoxes, address) {
-  if (totalBoxes <= 0) return 0;
+function calculateShippingFeeByAddress(shippingUnits, address) {
+  if (shippingUnits <= 0) return 0;
+  const fullGroups = Math.floor(shippingUnits / 3);
+  const remainder = shippingUnits - fullGroups * 3;
 
   if (isOffshoreShippingAddress(address)) {
-    const fullGroups = Math.floor(totalBoxes / 3);
-    const remainder = totalBoxes % 3;
-    const remainderFee = remainder === 1 ? 300 : remainder === 2 ? 350 : 0;
+    const remainderFee = remainder === 0 ? 0 : remainder <= 1 ? 300 : 350;
     return fullGroups * 400 + remainderFee;
   }
 
-  const remainder = totalBoxes % 3;
-  if (remainder === 1) return 150;
-  if (remainder === 2) return 250;
-  return 0;
+  return remainder === 0 ? 0 : remainder <= 1 ? 150 : 250;
 }
 
 async function fetchShippingBatches() {
@@ -1988,8 +1995,7 @@ function syncAndCalculate(id, val) {
 function calculate() {
   const pcInputs = document.querySelectorAll(".qty-input");
   let totalBoxes = 0;
-  let generalBoxes = 0;
-  let twoPieceBoxes = 0;
+  let shippingBoxes = 0;
   let subTotal = 0;
 
   // 因為雙向同步了，直接統一計算桌機版的數值即為正確總數
@@ -1997,15 +2003,11 @@ function calculate() {
     const qty = parseInt(input.value) || 0;
     const price = parseInt(input.getAttribute("data-price")) || 0;
     totalBoxes += qty;
-    if (isTwoPieceCategory(input.getAttribute("data-category"))) {
-      twoPieceBoxes += qty;
-    } else {
-      generalBoxes += qty;
-    }
+    const rule = input.getAttribute("data-shipping-rule") || getPublicProductShippingRule({category:input.getAttribute("data-category")});
+    shippingBoxes += qty * (rule === "half_6" ? 0.5 : 1);
     subTotal += qty * price;
   });
 
-  const shippingBoxes = generalBoxes + Math.floor(twoPieceBoxes / 2);
   const shippingFee = calculateShippingFeeByAddress(
     shippingBoxes,
     getCurrentShippingAddress(),

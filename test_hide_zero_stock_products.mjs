@@ -22,5 +22,5 @@ assert.deepEqual(
 );
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-assert.match(html, /app\.js\?v=20260919-hide-zero-stock-1/);
+assert.match(html, /app\.js\?v=20260920-product-shipping-rules-1/);
 console.log("public zero-stock product visibility: PASS");
