@@ -1353,7 +1353,9 @@ if (document.readyState === "loading") {
 
 function getActivePublicProducts() {
   return PUBLIC_PRODUCT_CATALOG.filter(
-    (product) => product.active === true,
+    (product) =>
+      product.active === true &&
+      (!Number.isInteger(product.stock) || product.stock > 0),
   ).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
