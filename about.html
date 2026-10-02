@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>系統介紹｜三合院農園</title><style>
+:root{color-scheme:light;--ink:#253d30;--muted:#58635b;--paper:#fbfaf5;--line:#d9dfd2;--accent:#365941}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.85 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+a{color:#275438;text-underline-offset:4px}button{font:inherit;cursor:pointer;border:1px solid #82917f;border-radius:8px;padding:7px 13px;background:#fff;color:var(--ink)}button:focus-visible,a:focus-visible,[contenteditable]:focus-visible{outline:3px solid #927119;outline-offset:4px}
+.reviewbar{background:#eee7d4;border-bottom:1px solid #d2c7a6;padding:12px 24px}.barinner{max-width:1020px;margin:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}.reviewbar strong{font-size:15px}.hint{font-size:13px;color:#625c46;flex-basis:100%;margin:0}.reviewbar button{font-size:14px}#status{font-size:14px}
+.shell{max-width:920px;margin:auto;padding:34px 28px 64px}.sitehead{display:flex;gap:16px;justify-content:space-between;align-items:center;padding-bottom:22px;border-bottom:1px solid var(--line)}.wordmark{font-size:20px;letter-spacing:2px;font-weight:700;text-decoration:none}nav{display:flex;gap:22px;font-size:15px}
+.eyebrow{font-size:13px;letter-spacing:2px;color:var(--muted);margin:38px 0 10px}h1{font-size:clamp(30px,5vw,46px);letter-spacing:1px;line-height:1.35;margin:0 0 18px}h2{font-size:23px;line-height:1.5;margin:0 0 14px}h3{font-size:18px;margin:0 0 8px}p{margin:0 0 16px}.lead{font-size:19px;color:#445548;max-width:740px}.meta{font-size:14px;color:var(--muted)}section{padding:28px 0;border-bottom:1px solid var(--line)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0}.card{background:#f0f2e9;padding:21px;border-radius:12px}.card p{margin:0;font-size:15px}.cta{display:inline-block;background:var(--accent);color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;margin:6px 14px 6px 0}.reviewnote{background:#fff4d9;border-left:4px solid #b99343;padding:15px 19px;margin:22px 0;font-size:15px;color:#65512d}.reviewnote strong{display:block}.proposed{border:1px dashed #b99e68;border-radius:10px;padding:22px;margin:24px 0;background:#fffdf6}.tag{display:inline-block;font-size:12px;background:#ece1c6;padding:2px 9px;border-radius:5px;margin-bottom:12px}.facts{display:grid;grid-template-columns:130px 1fr;gap:10px 18px}.facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}li{margin:9px 0}ul{padding-left:24px}footer{padding-top:26px;font-size:14px;color:var(--muted)}.editing [data-edit]{outline:1px dashed #9bad96;outline-offset:5px;background:#fff}.editing [data-edit]:focus{outline:2px solid #57704b}.linknote{font-size:13px;color:var(--muted)}[data-edit]{overflow-wrap:anywhere}
+@media(max-width:600px){.shell{padding:24px 20px 44px}.sitehead{display:block}nav{margin-top:14px}.cards{grid-template-columns:1fr;gap:10px}.card{padding:17px}.facts{grid-template-columns:1fr;gap:2px}.facts dd{margin-bottom:12px}.reviewbar{padding:12px 16px}section{padding:24px 0}}
+@media print{.reviewbar{display:none}.shell{max-width:none;padding:0}.reviewnote,.proposed{break-inside:avoid}a{color:inherit}.cards{display:block}.card{margin-bottom:12px}body{font-size:12pt}}
+</style></head>
+<body><div class="shell"><header class="sitehead"><a class="wordmark" href="about.html">三合院農園</a><nav aria-label="頁面導覽"><a href="about.html">系統介紹</a><a href="privacy.html">隱私權政策</a></nav></header>
+<main>
+<p class="eyebrow">SANHEYUAN ORDER SYSTEM</p><h1>三合院農園訂購系統</h1>
+<p class="lead">從瀏覽商品、預購到查詢訂單，讓顧客與三合院農園透過同一套系統完成訂購及後續聯繫。</p>
+<p class="meta">Google 應用程式名稱：Sanheyuan Order Production</p>
+<p><a class="cta" href="https://zoesuau.github.io/milkpear-order-system/" target="_blank" rel="noopener">前往訂購網站 ↗</a><a href="privacy.html">閱讀隱私權政策</a></p>
+<p class="linknote">請前往訂購網站查看目前開放的商品及訂購資訊。</p>
+<section><h2>這套系統提供什麼服務</h2><div class="cards">
+<article class="card"><h3>商品與預購</h3><p>查看商品、訂購資訊，並依開放的訂購流程提交預購需求。</p></article>
+<article class="card"><h3>訂單查詢</h3><p>依網站提供的身分驗證與查詢流程，查看自己的訂單資訊與處理狀態。</p></article>
+<article class="card"><h3>營運管理</h3><p>供完成管理員驗證的人員處理商品、訂單、付款核對及出貨作業。</p></article></div></section>
+<section><h2>登入與 Google 資料使用</h2><p>顧客依網站流程使用 LINE 身分驗證。訂購時不需要授權本系統讀取顧客個人的 Google 試算表或雲端硬碟。</p>
+<p>後端由營運帳戶授權使用 Google 服務，保存與處理營運試算表、支援訂單查詢、維護商品圖片及備援，並執行系統排程與告警。Google 授權與顧客 LINE 登入、管理員登入屬於不同流程。</p><p>資料項目、用途與保存位置，詳見<a href="privacy.html">隱私權政策</a>。</p></section>
+<section><h2>系統所有者與聯絡方式</h2><dl class="facts"><dt>系統所有者</dt><dd>Zoe</dd><dt>聯絡電子郵件</dt><dd>mmsmmb88@gmail.com</dd></dl>
+<p class="meta">訂單目前由 Zoe 一人管理。</p></section>
+</main><footer>三合院農園訂購系統 · Zoe<br>聯絡信箱：<a href="mailto:mmsmmb88@gmail.com">mmsmmb88@gmail.com</a></footer></div></body></html>
