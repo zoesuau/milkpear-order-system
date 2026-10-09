@@ -224,6 +224,7 @@ const PUBLIC_PRODUCT_CATALOG_FALLBACK = [
 ];
 let PUBLIC_PRODUCT_CATALOG = [];
 let publicProductCatalogState = "loading";
+const publicPackagingSelection = new Map();
 
 function getOrderFunnelSessionId() {
   if (orderFunnelSessionId) return orderFunnelSessionId;
@@ -1431,6 +1432,8 @@ function normalizePublicCatalogProduct(product) {
     code: String(product?.code ?? "").trim(),
     variety: String(product?.variety ?? "").trim(),
     category: normalizePublicProductCategory(product?.category),
+    productSeries: String(product?.productSeries ?? "").trim(),
+    imageUrl: normalizePublicProductImageUrl(product?.imageUrl),
     shippingRule: getPublicProductShippingRule(product),
     grade: String(product?.grade ?? "").trim(),
     weight: "",
@@ -1539,13 +1542,115 @@ function renderProductVarietyPanel(group) {
       </div>
       <div class="product-panel-hint">${hint}</div>
       <div class="product-direct-list">
-        ${group.products.map(renderDirectProductRow).join("")}
+        ${groupPublicProductPackaging(group.products).map(renderPublicProductCard).join("")}
       </div>
     </section>
   `;
 }
 
 function renderDirectProductRow(product) {
+  return renderPublicProductCard([product]);
+}
+
+function normalizePublicProductImageUrl(value) {
+  const url = String(value ?? "").trim();
+  if (/^https:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      return parsed.username || parsed.password ? "" : parsed.href;
+    } catch (_) { return ""; }
+  }
+  // Repository-owned image assets only; never accept script or protocol-relative URLs.
+  return /^assets\/[A-Za-z0-9_./-]+$/.test(url) && !url.includes("..") ? url : "";
+}
+
+function getPublicPackagingLabel(product) {
+  const label = String(product?.productSeries || "").trim();
+  return ["禮盒版", "精裝版"].includes(label) ? label : "";
+}
+
+function getPublicPackagingGroupKey(product) {
+  return JSON.stringify([
+    product.variety,
+    String(product.grade).replace(/\s+/g, "").toUpperCase(),
+    normalizePublicProductCategory(product.category),
+  ]);
+}
+
+function groupPublicProductPackaging(products) {
+  const candidates = new Map();
+  products.forEach((product) => {
+    if (!getPublicPackagingLabel(product)) return;
+    const key = getPublicPackagingGroupKey(product);
+    if (!candidates.has(key)) candidates.set(key, []);
+    candidates.get(key).push(product);
+  });
+  const emitted = new Set();
+  const groups = [];
+  products.forEach((product) => {
+    const key = getPublicPackagingGroupKey(product);
+    const variants = candidates.get(key) || [];
+    const labels = variants.map(getPublicPackagingLabel);
+    // Missing or duplicate packaging metadata must not hide/merge distinct SKUs.
+    if (!getPublicPackagingLabel(product) || new Set(labels).size !== variants.length) {
+      groups.push([product]);
+    } else if (!emitted.has(key)) {
+      emitted.add(key);
+      groups.push(variants.slice().sort((a, b) =>
+        ["禮盒版", "精裝版"].indexOf(a.productSeries) - ["禮盒版", "精裝版"].indexOf(b.productSeries)));
+    }
+  });
+  return groups;
+}
+
+function renderPublicProductCard(variants) {
+  const first = variants[0];
+  const key = variants.length > 1 ? getPublicPackagingGroupKey(first) : `sku:${first.id}`;
+  const selectedId = variants.some((item) => item.id === publicPackagingSelection.get(key))
+    ? publicPackagingSelection.get(key) : first.id;
+  const packaging = getPublicPackagingLabel(first);
+  const title = `${first.variety} ${first.grade}${first.variety === "日本蜜柑" ? "裝" : ""}`;
+  const selector = packaging ? `
+    <label class="product-packaging-label">包裝
+      <select class="product-packaging-select" aria-label="${escapeHtmlAttribute(title)} 包裝"
+        onchange="selectPublicProductPackaging(this)" ${variants.length === 1 ? "disabled" : ""}>
+        ${variants.map((item) => `<option value="${escapeHtmlAttribute(item.id)}"${item.id === selectedId ? " selected" : ""}>${escapeHtml(getPublicPackagingLabel(item))}</option>`).join("")}
+      </select>
+    </label>` : "";
+  return `
+    <article class="product-direct-row product-photo-card${isTwoPieceCategory(first.category) ? " product-direct-row-featured" : ""}"
+      data-packaging-group="${escapeHtmlAttribute(key)}">
+      <div class="product-card-heading">
+        <div class="product-grade-price-row">
+          <h3 aria-label="${escapeHtmlAttribute(title)}">${escapeHtml(first.grade)}${first.variety === "日本蜜柑" ? "裝" : ""}</h3>
+          <div class="product-card-prices" aria-live="polite">
+            ${variants.map((item) => `<span class="product-direct-price product-card-price" data-product-id="${escapeHtmlAttribute(item.id)}"${item.id !== selectedId ? " hidden" : ""}>$${Number.isFinite(item.price) ? item.price.toLocaleString() : "0"}<small>／盒</small></span>`).join("")}
+          </div>
+        </div>
+        ${selector}
+      </div>
+      ${variants.map((item) => renderPublicProductVariant(item, item.id !== selectedId)).join("")}
+    </article>`;
+}
+
+function selectPublicProductPackaging(select) {
+  const card = select.closest(".product-photo-card");
+  if (!card) return;
+  const panes = [...card.querySelectorAll(".product-variant-pane, .product-card-price")];
+  if (!panes.some((pane) => pane.dataset.productId === select.value)) return;
+  publicPackagingSelection.set(card.dataset.packagingGroup, select.value);
+  panes.forEach((pane) => { pane.hidden = pane.dataset.productId !== select.value; });
+  // Each pane retains its own canonical quantity input. Switching never transfers
+  // quantities, prices, stock limits or shipping rules between product codes.
+}
+
+function handlePublicProductImageError(image) {
+  image.hidden = true;
+  const fallback = image.parentElement.querySelector(".product-photo-empty");
+  if (fallback) fallback.hidden = false;
+}
+
+function renderPublicProductVariant(product, hidden) {
   const isTwoPiece = isTwoPieceCategory(product.category);
   const categoryBadge = isTwoPiece
     ? '<span class="product-direct-badge">兩顆裝</span>'
@@ -1553,21 +1658,22 @@ function renderDirectProductRow(product) {
   const stockText = shouldShowLowStock(product)
     ? `<div class="product-direct-meta"><span class="product-direct-stock">剩 ${product.stock} 盒</span></div>`
     : "";
-  const priceText = Number.isFinite(product.price)
-    ? product.price.toLocaleString()
-    : "0";
-
   return `
-    <div class="product-direct-row${isTwoPiece ? " product-direct-row-featured" : ""}">
-      <div class="product-direct-info">
-        <div class="product-direct-title">
-          <strong>${escapeHtml(product.grade)}${product.variety === "日本蜜柑" ? "裝" : " 級別"}</strong>
-          ${categoryBadge}
+    <div class="product-variant-pane" data-product-id="${escapeHtmlAttribute(product.id)}"${hidden ? " hidden" : ""}>
+      <div class="product-variant-main">
+        <div class="product-photo-frame">
+          ${product.imageUrl ? `<img src="${escapeHtmlAttribute(product.imageUrl)}"
+            alt="${escapeHtmlAttribute([product.variety, product.grade, product.productSeries].filter(Boolean).join(" "))}"
+            loading="lazy" decoding="async" referrerpolicy="no-referrer"
+            onerror="handlePublicProductImageError(this)" />` : ""}
+          <span class="product-photo-empty"${product.imageUrl ? " hidden" : ""}>商品照片尚未提供</span>
         </div>
-        ${product.variety === "日本蜜柑" ? "" : `<div class="product-direct-count">${escapeHtml(product.count)}裝</div>`}
-        <div class="product-direct-count">${getPublicProductShippingRule(product) === "half_6" ? "六盒免運" : "三盒免運"}</div>
-        <div class="product-direct-price">$${priceText}</div>
-        ${stockText}
+        <div class="product-variant-details" aria-live="polite">
+          ${categoryBadge}
+          ${product.productSeries && !getPublicPackagingLabel(product) ? `<div class="product-direct-count">${escapeHtml(product.productSeries)}</div>` : ""}
+          <div class="product-direct-count product-packaging-summary">${product.variety === "日本蜜柑" ? "" : `${escapeHtml(product.count)}裝・`}${getPublicProductShippingRule(product) === "half_6" ? "六盒免運" : "三盒免運"}</div>
+          ${stockText}
+        </div>
       </div>
       <div class="product-direct-qty-row">
         <span>訂購數量：</span>
@@ -1588,7 +1694,7 @@ function getProductDisplayLabel(product) {
   const priceText = Number.isFinite(product.price)
     ? product.price.toLocaleString()
     : "0";
-  return `${category}｜${product.grade}｜${product.count}｜$${priceText}`;
+  return [category, product.grade, product.productSeries, product.count, `$${priceText}`].filter(Boolean).join("｜");
 }
 
 function renderProductOption(product, selectedId = "") {
@@ -1808,10 +1914,11 @@ async function handleStockInsufficientSubmitError(message) {
 function renderQtyControl(product, inputClass) {
   return `
     <div class="qty-control">
-      <button type="button" class="qty-btn" onclick="stepQty(this, -1)">-</button>
+      <button type="button" class="qty-btn" aria-label="減少一盒" onclick="stepQty(this, -1)">-</button>
       <input
         type="number"
         class="${escapeHtmlAttribute(inputClass)}"
+        aria-label="${escapeHtmlAttribute([product.variety, product.grade, product.productSeries, "訂購盒數"].filter(Boolean).join(" "))}"
         data-id="${escapeHtmlAttribute(product.id)}"
         data-code="${escapeHtmlAttribute(product.code)}"
         data-level="${escapeHtmlAttribute(product.grade)}"
@@ -1826,7 +1933,7 @@ function renderQtyControl(product, inputClass) {
         value="0"
         onchange="syncAndCalculate(this.dataset.id, this.value)"
       />
-      <button type="button" class="qty-btn" onclick="stepQty(this, 1)">+</button>
+      <button type="button" class="qty-btn" aria-label="增加一盒" onclick="stepQty(this, 1)">+</button>
     </div>
   `;
 }

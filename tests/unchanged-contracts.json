@@ -1,0 +1,12 @@
+{
+  "baselineCommit": "b382136db3c0476d1e0f94aa7d78b993460f22d9",
+  "functions": {
+    "calculate": "f92e2bad3ad3d5bcfbbf5704b8ae89b359c9694fd5e359289a2e214157decf43",
+    "syncAndCalculate": "3a127b8f4f6c73643583e8e684fad057e20168a7164460c248bfbf5e0b689807",
+    "calculateShippingFeeByAddress": "ee3c918f8430cf4eb2a828ce766e395504cfc291bfb54f8d90e2ee0881fedfe0",
+    "getTwoPieceSelectionState": "10180098a15f1ed4df4935d96ef0e2939802d2aa7120801248700fa8690af6f1",
+    "getSelectedQuantitiesByCode": "d1c191d5eefc0f15c26b18b1c1906b8819ab42061dc7bf66839bebea5f6c48a7",
+    "applySelectedQuantitiesByCode": "72a98f0b824b11ee8d30dc5dbf62580648fd7873e6363e21707ec09139876fc8",
+    "submitOrder": "009e22e57e13ff0bc9471b6ea1e622f3b3bfd8c0999fba5c6f6284b4665917f3"
+  }
+}
