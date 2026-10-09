@@ -1434,6 +1434,10 @@ function normalizePublicCatalogProduct(product) {
     category: normalizePublicProductCategory(product?.category),
     productSeries: String(product?.productSeries ?? "").trim(),
     imageUrl: normalizePublicProductImageUrl(product?.imageUrl),
+    inventoryUnit: product?.inventoryUnit === 'fruit' ? 'fruit' : 'box',
+    stockPoolKey: String(product?.stockPoolKey || ''),
+    unitsPerBox: Number(product?.unitsPerBox || 1),
+    availableUnits: Number.isSafeInteger(product?.availableUnits) ? product.availableUnits : null,
     shippingRule: getPublicProductShippingRule(product),
     grade: String(product?.grade ?? "").trim(),
     weight: "",
@@ -1574,6 +1578,7 @@ function getPublicPackagingGroupKey(product) {
     product.variety,
     String(product.grade).replace(/\s+/g, "").toUpperCase(),
     normalizePublicProductCategory(product.category),
+    product.count,
   ]);
 }
 
@@ -1723,9 +1728,20 @@ function getSelectedProductQty(id) {
   return parseInt(hiddenInput?.value || "0", 10) || 0;
 }
 
-function getRemainingStock(product) {
+function getAvailableBoxesForSelection(product, quantities = getSelectedProductQty) {
   if (!hasFiniteStock(product)) return null;
-  return Math.max(0, product.stock - getSelectedProductQty(product.id));
+  if (product.inventoryUnit !== 'fruit') return product.stock;
+  if (!product.stockPoolKey || !Number.isSafeInteger(product.availableUnits) ||
+      !Number.isSafeInteger(product.unitsPerBox) || product.unitsPerBox < 1) return 0;
+  const usedByOthers = PUBLIC_PRODUCT_CATALOG.reduce((used, other) =>
+    other.id !== product.id && other.inventoryUnit === 'fruit' && other.stockPoolKey === product.stockPoolKey
+      ? used + Math.max(0, quantities(other.id)) * other.unitsPerBox : used, 0);
+  return Math.max(0, Math.floor((product.availableUnits - usedByOthers) / product.unitsPerBox));
+}
+
+function getRemainingStock(product) {
+  const available = getAvailableBoxesForSelection(product);
+  return available === null ? null : Math.max(0, available - getSelectedProductQty(product.id));
 }
 
 function renderHiddenQtyInput(product) {
@@ -1798,7 +1814,7 @@ function renderSelectedProductSummary() {
           const product = getPublicProductById(item.id);
           const label = product ? getProductDisplayLabel(product) : item.level;
           const stockText = product && shouldShowLowStock(product)
-            ? `<span class="selected-summary-stock">剩 ${Math.max(0, item.stock - item.qty)} 盒</span>`
+            ? `<span class="selected-summary-stock">剩 ${getRemainingStock(product)} 盒</span>`
             : "";
           return `
             <div class="selected-summary-item">
@@ -2084,10 +2100,12 @@ function syncAndCalculate(id, val) {
     recordOrderFunnelEvent("product_selected", { detail: String(id || "") });
   }
   const product = getPublicProductById(id);
-  if (product && hasFiniteStock(product) && intVal > product.stock) {
-    intVal = product.stock;
-    alert(`${product.grade} 目前剩 ${product.stock} 盒。`);
+  const available = product ? getAvailableBoxesForSelection(product) : null;
+  if (available !== null && intVal > available) {
+    intVal = available;
+    alert(`${product.grade} 此規格目前還可選 ${available} 盒（已扣除同級別其他規格的選購量）。`);
   }
+  intVal = Math.max(0, intVal);
   const pcInput = findQtyInputByDataValue("id", id, ".qty-input");
   const mobileInput = findQtyInputByDataValue("id", id, ".qty-input-mobile");
 
