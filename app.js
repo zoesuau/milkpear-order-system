@@ -1570,6 +1570,9 @@ function normalizePublicProductImageUrl(value) {
 
 function getPublicPackagingLabel(product) {
   const label = String(product?.productSeries || "").trim();
+  // Existing pear gift-box SKUs predate packaging metadata. Keep their codes
+  // and stored names intact while exposing the gift/premium selector.
+  if (!label && ["牛奶梨", "蔗香梨"].includes(product?.variety)) return "禮盒版";
   return ["禮盒版", "精裝版"].includes(label) ? label : "";
 }
 
