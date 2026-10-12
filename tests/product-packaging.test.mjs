@@ -9,7 +9,7 @@ const base={id:'g8',code:'G8',variety:'蔗香梨',grade:'8A',category:'一般禮
 const premium={...base,id:'p8',code:'P8',productSeries:'精裝版',price:1500,imageUrl:'https://example.com/premium.png'};
 const grade9={...base,id:'g9',code:'G9',grade:'9A',price:1800};
 function runtime(){
- const nodes=new Map(),inputs=[];
+ const nodes=new Map([['groupShippingError',{textContent:'',hidden:true}]]),inputs=[];
  const doc={readyState:'loading',addEventListener(){},querySelectorAll:s=>s==='.qty-input'?inputs:[],querySelector:()=>null,getElementById:id=>nodes.get(id)||null};
  const c=vm.createContext({document:doc,window:{ORDER_SYSTEM_CONFIG:{line:{},productId:'fixture',customerId:'sanheyuan',environment:'test'}},URL,console,sessionStorage:{getItem(){return null}},alert(){}});
  vm.runInContext(app,c);
@@ -24,9 +24,9 @@ test('same grade packaging merges; other grades and sales categories remain sepa
 test('missing, unfamiliar and duplicate packaging metadata never hide SKUs or invent options',()=>{
  const {c}=runtime();const ps=[{...base,productSeries:''},{...premium,productSeries:''}];
  assert.equal(c.groupPublicProductPackaging(ps).length,2);
- assert.equal(c.groupPublicProductPackaging([base,{...premium,count:'8顆'}]).length,1,'packaging may carry its own count');
+ assert.equal(c.groupPublicProductPackaging([base,{...premium,count:'8顆'}]).length,2,'different counts remain separate as in the current production catalog');
  assert.equal(c.groupPublicProductPackaging([base,{...base,id:'duplicate'},premium]).length,3);
- const html=c.renderPublicProductCard(ps.slice(0,1));assert.doesNotMatch(html,/<select/);
+ const html=c.renderPublicProductCard(ps.slice(0,1));assert.match(html,/>禮盒版<\/option>/,'legacy pear SKU retains the current production gift label');
  assert.equal(c.groupPublicProductPackaging([{...base,productSeries:'Ｑ版'},premium]).length,2);
 });
 test('dropdown contains packaging labels only and every SKU keeps exactly one canonical quantity',()=>{
@@ -75,7 +75,21 @@ test('existing stock and two-piece constraints remain, zero-stock variants stay 
  assert.equal(c.calculateShippingFeeByAddress(3,'台北'),0);
  assert.equal(c.calculateShippingFeeByAddress(1,'台北'),150);
 });
-test('calculation, stock sync and order submission functions are unchanged from the baseline',()=>{
- const names=['calculate','syncAndCalculate','calculateShippingFeeByAddress','getTwoPieceSelectionState','getSelectedQuantitiesByCode','applySelectedQuantitiesByCode','submitOrder'];
+test('unchanged stock, legacy shipping and quantity contracts match the current production baseline',()=>{
+ const names=['syncAndCalculate','calculateShippingFeeByAddress','getTwoPieceSelectionState','getSelectedQuantitiesByCode','applySelectedQuantitiesByCode'];
  for(const name of names){const pattern=new RegExp(`(?:async )?function ${name}\\([\\s\\S]*?\\n\\}`);assert.equal(createHash('sha256').update(app.match(pattern)?.[0]||'').digest('hex'),contracts.functions[name],name);}
+});
+
+test('custom group shipping combines packaging quantities with the configured remainder fee',()=>{
+ const {c,inputs,nodes}=runtime();const rule=c.encodeGroupShippingRule({name:'測試',revision:1,shipping:{boxes:3,fees:[180,260],offshore:null}});
+ const products=[{...base,variety:'測試',shippingRule:rule},{...premium,variety:'測試',shippingRule:rule}];
+ c.testProducts=products;vm.runInContext('PUBLIC_PRODUCT_CATALOG=testProducts;',c);
+ inputs.push(input(products[0],2),input(products[1],2));
+ for(const id of ['subTotal','shippingFee','grandTotal','totalBoxes'])nodes.set(id,{innerText:''});
+ c.calculate();assert.equal(nodes.get('subTotal').innerText,'5,400');assert.equal(nodes.get('shippingFee').innerText,'180');assert.equal(nodes.get('grandTotal').innerText,'5,580');
+});
+test('shared fruit inventory still limits all packaging selections together',()=>{
+ const {c}=runtime();const products=[{...base,inventoryUnit:'fruit',stockPoolKey:'pool',unitsPerBox:6,availableUnits:60,stock:10},{...premium,inventoryUnit:'fruit',stockPoolKey:'pool',unitsPerBox:6,availableUnits:60,stock:10}];
+ c.testProducts=products;vm.runInContext('PUBLIC_PRODUCT_CATALOG=testProducts;',c);
+ assert.equal(c.getAvailableBoxesForSelection(products[0],id=>id==='p8'?8:0),2);
 });

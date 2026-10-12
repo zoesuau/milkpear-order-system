@@ -1,3 +1,61 @@
+// Shared by the Apps Script authority and both clients. No IO or default prices.
+function normalizeGroupShippingPolicy(value) {
+  if (value === null || value === undefined) return null;
+  const money = n => n === null || (Number.isSafeInteger(n) && n >= 0 && n <= 1000000);
+  if (!value || !Number.isInteger(value.boxes) || value.boxes < 1 || value.boxes > 100 ||
+      !Array.isArray(value.fees) || value.fees.length !== value.boxes - 1 || !value.fees.every(money)) throw Error('GROUP_SHIPPING_INVALID');
+  let offshore = null;
+  if (value.offshore != null) {
+    if (!money(value.offshore.full) || !Array.isArray(value.offshore.fees) ||
+        value.offshore.fees.length !== value.boxes - 1 || !value.offshore.fees.every(money)) throw Error('GROUP_SHIPPING_INVALID');
+    offshore = {full:value.offshore.full,fees:value.offshore.fees.slice()};
+  }
+  return {boxes:value.boxes,fees:value.fees.slice(),offshore};
+}
+function isGroupShippingReady(policy) {
+  return !!policy && policy.fees.every(n => Number.isSafeInteger(n) && n >= 0);
+}
+function parseGroupShippingRule(rule) {
+  if (typeof rule !== 'string' || !rule.startsWith('group_v1:')) return null;
+  try {
+    const data = JSON.parse(decodeURIComponent(rule.slice(9)));
+    if (typeof data.name !== 'string' || !data.name.trim() || !Number.isInteger(data.revision) || data.revision < 1) throw Error();
+    return {name:data.name,revision:data.revision,shipping:normalizeGroupShippingPolicy(data.shipping)};
+  } catch (_) { throw Error('GROUP_SHIPPING_INVALID'); }
+}
+function encodeGroupShippingRule(config) {
+  return 'group_v1:' + encodeURIComponent(JSON.stringify({name:config.name,revision:config.revision,shipping:config.shipping}));
+}
+function calculateGroupShipping(items, offshore, legacyCalculate) {
+  const selected = items.filter(item => item.qty > 0);
+  const groups = selected.map(item => parseGroupShippingRule(item.shippingRule));
+  const first = groups.find(Boolean);
+  if (!first) return legacyCalculate(selected.reduce((sum,item) => sum + item.qty * (item.shippingRule === 'half_6' ? 0.5 : 1),0));
+  if (groups.some(group => !group || group.name !== first.name)) throw Error('SHIPPING_GROUP_MIX_NOT_SUPPORTED');
+  if (selected.some(item => !Number.isSafeInteger(item.qty) || item.qty < 1) ||
+      groups.some(group => JSON.stringify(group) !== JSON.stringify(first))) throw Error('GROUP_SHIPPING_REFRESH_REQUIRED');
+  const p = first.shipping;
+  if (!isGroupShippingReady(p)) throw Error('GROUP_SHIPPING_NOT_CONFIGURED');
+  const quantity = selected.reduce((sum,item) => sum + item.qty,0);
+  if (!Number.isSafeInteger(quantity)) throw Error('GROUP_SHIPPING_INVALID');
+  const full = Math.floor(quantity / p.boxes), remainder = quantity % p.boxes;
+  if (offshore) {
+    if (!p.offshore || p.offshore.full === null || p.offshore.fees.some(n => n === null)) throw Error('GROUP_OFFSHORE_NOT_CONFIGURED');
+    const fee=full * p.offshore.full + (remainder ? p.offshore.fees[remainder - 1] : 0);
+    if(!Number.isSafeInteger(fee))throw Error("GROUP_SHIPPING_INVALID");
+    return fee;
+  }
+  return remainder ? p.fees[remainder - 1] : 0;
+}
+
+var groupShippingCalculationError = '';
+function groupShippingMessage(code) {
+ return ({SHIPPING_GROUP_MIX_NOT_SUPPORTED:'目前選到不同群組的商品，請保留同一群組後再結帳。',GROUP_OFFSHORE_NOT_CONFIGURED:'此商品尚未設定離島運費，請聯絡農園確認。',GROUP_SHIPPING_NOT_CONFIGURED:'此商品運費尚未設定完成，請聯絡農園確認。',GROUP_SHIPPING_REFRESH_REQUIRED:'運費規則已更新，請重新整理商品後再結帳。'})[code] || '目前無法確認運費，請重新整理商品後再試。';
+}
+function publicGroupShippingLabel(product) {
+ const group=parseGroupShippingRule(getPublicProductShippingRule(product));
+ return group ? (isGroupShippingReady(group.shipping) ? `每 ${group.shipping.boxes} 盒一組免運，剩餘盒數另計` : '運費尚未設定') : getPublicProductShippingRule(product)==='half_6'?'六盒免運':'三盒免運';
+}
 let citySelector;
 let orderHistoryList = [];
 let isSyncing = false;
@@ -465,6 +523,7 @@ function updateOrderSubmitAvailability() {
     document.querySelector(".submit-btn");
   if (!button) return;
   button.disabled =
+    !!groupShippingCalculationError ||
     orderSubmitInProgress ||
     publicProductCatalogState !== "ready" ||
     !isTwoPieceSelectionComplete() ||
@@ -1679,7 +1738,7 @@ function renderPublicProductVariant(product, hidden) {
         <div class="product-variant-details" aria-live="polite">
           ${categoryBadge}
           ${product.productSeries && !getPublicPackagingLabel(product) ? `<div class="product-direct-count">${escapeHtml(product.productSeries)}</div>` : ""}
-          <div class="product-direct-count product-packaging-summary">${product.variety === "日本蜜柑" ? "" : `${escapeHtml(product.count)}裝・`}${getPublicProductShippingRule(product) === "half_6" ? "六盒免運" : "三盒免運"}</div>
+          <div class="product-direct-count product-packaging-summary">${product.variety === "日本蜜柑" ? "" : `${escapeHtml(product.count)}裝・`}${escapeHtml(publicGroupShippingLabel(product))}</div>
           ${stockText}
         </div>
       </div>
@@ -2124,6 +2183,7 @@ function calculate() {
   const pcInputs = document.querySelectorAll(".qty-input");
   let totalBoxes = 0;
   let shippingBoxes = 0;
+  const shippingItems=[];
   let subTotal = 0;
 
   // 因為雙向同步了，直接統一計算桌機版的數值即為正確總數
@@ -2132,14 +2192,24 @@ function calculate() {
     const price = parseInt(input.getAttribute("data-price")) || 0;
     totalBoxes += qty;
     const rule = input.getAttribute("data-shipping-rule") || getPublicProductShippingRule({category:input.getAttribute("data-category")});
+    shippingItems.push({qty,shippingRule:rule});
     shippingBoxes += qty * (rule === "half_6" ? 0.5 : 1);
     subTotal += qty * price;
   });
 
-  const shippingFee = calculateShippingFeeByAddress(
-    shippingBoxes,
-    getCurrentShippingAddress(),
-  );
+  let shippingFee;
+  try { const address=getCurrentShippingAddress();shippingFee=calculateGroupShipping(shippingItems,isOffshoreShippingAddress(address),units=>calculateShippingFeeByAddress(units,address));groupShippingCalculationError=''; }
+  catch(error){groupShippingCalculationError=error.message;}
+  let shippingHint=document.getElementById('groupShippingError');
+  if(!shippingHint){shippingHint=document.createElement('p');shippingHint.id='groupShippingError';shippingHint.setAttribute('role','alert');document.getElementById('shippingFee')?.parentElement?.append(shippingHint);}
+  shippingHint.textContent=groupShippingCalculationError?groupShippingMessage(groupShippingCalculationError):'';
+  shippingHint.hidden=!groupShippingCalculationError;
+  if(groupShippingCalculationError){
+    for(const id of ['shippingFee','grandTotal']){const el=document.getElementById(id);if(el)el.innerText='待確認';}
+    if(document.getElementById('totalBoxes'))document.getElementById('totalBoxes').innerText=totalBoxes;
+    if(document.getElementById('subTotal'))document.getElementById('subTotal').innerText=subTotal.toLocaleString();
+    renderSelectedProductList();updateOrderSubmitAvailability();return;
+  }
 
   // 貨到付款手續費邏輯
   let codFee = 0;
@@ -2420,6 +2490,8 @@ function restoreOrderDraftShippingBatch() {
 // 送出訂單給 GAS 後端
 async function submitOrder(e) {
   if (e) e.preventDefault();
+  calculate();
+  if(groupShippingCalculationError){alert(groupShippingMessage(groupShippingCalculationError));return;}
   recordOrderFunnelEvent("submit_clicked");
 
   const isDesktopPairing =
@@ -2772,6 +2844,10 @@ async function submitOrder(e) {
       PUBLIC_ORDER_INDETERMINATE:
         "上一筆訂單仍在確認中，請先到「我的訂單」查核，暫時不要再次送出。",
       ORDER_AMOUNT_MISMATCH: "訂單金額驗證失敗，請重新整理頁面後再送出。",
+      GROUP_SHIPPING_NOT_CONFIGURED: "商品運費尚未設定完整，請聯絡農園確認。",
+      GROUP_OFFSHORE_NOT_CONFIGURED: "商品離島運費尚未設定，請聯絡農園確認。",
+      SHIPPING_GROUP_MIX_NOT_SUPPORTED: "請保留同一商品群組後再送出。",
+      GROUP_SHIPPING_REFRESH_REQUIRED: "運費規則已更新，請重新整理商品後再送出。",
       ORDER_SHIPPING_FEE_MISMATCH: "運費驗證失敗，請重新整理頁面後再送出。",
       ORDER_BOXES_MISMATCH: "盒數驗證失敗，請重新整理頁面後再送出。",
       PRODUCT_CATALOG_NOT_FOUND:
